@@ -29,7 +29,7 @@ const ConversationHistory: React.FC<Props> = ({ onBack, sessionId: propSessionId
     setLoading(true);
     setError('');
     try {
-      const API = 'http://127.0.0.1:8000';
+      const API_URL = "https://aura-health-ai.onrender.com"; 
       const res = await axios.get(`${API}/history/${encodeURIComponent(sessionId)}`);
       setMessages(res.data?.messages || []);
     } catch (err: any) {

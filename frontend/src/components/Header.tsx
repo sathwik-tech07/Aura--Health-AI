@@ -6,7 +6,7 @@ import {
   LogIn,
   LogOut,
   Activity,
-} from "lucide-react";
+} 
 
 type PageKey = "none" | "appointments" | "conversations" | "doctors";
 

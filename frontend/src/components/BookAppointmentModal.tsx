@@ -33,7 +33,7 @@ const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, defaultDoctor,
   }, []);
   const t = I18N[lang] || I18N.en;
 
-  const API = 'http://127.0.0.1:8000';
+  const API_URL = "https://aura-health-ai.onrender.com"; 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);

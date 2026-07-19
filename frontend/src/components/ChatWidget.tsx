@@ -123,7 +123,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ isOpen, onClose, session
       let lastError: string | null = null;
 
       for (const payload of payloadVariants) {
-        response = await fetch(("http://127.0.0.1:8000/chat"), {
+        response = await fetch((https://aura-health-ai.onrender.com"), { 
           method: "POST",
           headers: {
             "Content-Type": "application/json",
