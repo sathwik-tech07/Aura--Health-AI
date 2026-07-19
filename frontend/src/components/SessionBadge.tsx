@@ -17,7 +17,7 @@ const SessionBadge: React.FC<{ sessionId?: string | null }> = ({ sessionId }) =>
     try {
       await navigator.clipboard.writeText(sessionId);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), 1500); 
     } catch (e) {
       console.error('copy failed', e);
     }
