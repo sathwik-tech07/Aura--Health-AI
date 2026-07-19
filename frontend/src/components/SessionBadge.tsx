@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from "react";
 import { Copy } from 'lucide-react';
 
 const SessionBadge: React.FC<{ sessionId?: string | null }> = ({ sessionId }) => {
