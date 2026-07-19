@@ -1,6 +1,5 @@
-import React, { useState } from "react";
-import { Copy } from 'lucide-react';
-
+import { useState } from "react";
+import { Copy } from "lucide-react"; 
 const SessionBadge: React.FC<{ sessionId?: string | null }> = ({ sessionId }) => {
   const [copied, setCopied] = useState(false);
   if (!sessionId) return null;
