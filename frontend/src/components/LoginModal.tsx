@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState } from "react"; 
 import axios from "axios";
 
-const API_URL = "https://aura-health-ai.onrender.com";
+const API = "https://aura-health-ai.onrender.com";
 
 interface Props {
   open: boolean;

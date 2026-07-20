@@ -37,7 +37,7 @@ const AppointmentHistory: React.FC<Props> = ({ onBack, newAppointment = null }) 
   }, []);
   const t = (I18N as any)[lang] || I18N.en;
 
-  const API_URL = "https://aura-health-ai.onrender.com"; 
+  const API  = "https://aura-health-ai.onrender.com"; 
   const fetchAppointments = async () => {
     setLoading(true);
     setError('');

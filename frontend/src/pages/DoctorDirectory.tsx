@@ -19,12 +19,12 @@ const DoctorDirectory: React.FC<Props> = ({ onBack, onBook }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const API_URL = "https://aura-health-ai.onrender.com"; 
+  const API= "https://aura-health-ai.onrender.com"; 
 
   const fetchDoctors = async () => {
     setLoading(true);
     setError('');
-    try {
+    try { 
       const res = await axios.get(`${API}/doctors`);
       setDoctors(res.data || []);
     } catch (err: any) {

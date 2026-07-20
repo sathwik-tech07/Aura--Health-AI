@@ -27,9 +27,9 @@ const ConversationHistory: React.FC<Props> = ({ onBack, sessionId: propSessionId
   const fetchHistory = async () => {
     if (!sessionId) return;   
     setLoading(true);
-    setError('');
+    setError(''); 
     try {
-      const API_URL = "https://aura-health-ai.onrender.com"; 
+      const API = "https://aura-health-ai.onrender.com"; 
       const res = await axios.get(`${API}/history/${encodeURIComponent(sessionId)}`);
       setMessages(res.data?.messages || []);
     } catch (err: any) {

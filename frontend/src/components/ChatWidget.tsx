@@ -113,7 +113,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ isOpen, onClose, session
         language: language,
       },
       {
-        message: trimmedText,
+        message: trimmedText, 
         language: language,
       },
     ];
@@ -122,7 +122,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ isOpen, onClose, session
       let responseText = "No response from server.";
       let lastError: string | null = null;
 
-   for (const payload of payloadVariants) {
+     for (const payload of payloadVariants) {
   response = await fetch("https://aura-health-ai.onrender.com/chat", {
     method: "POST",
     headers: {
@@ -137,13 +137,13 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ isOpen, onClose, session
   }
 
   if (response.status !== 422) {
-    lastError = `Chat API error: ${
-        }
+    lastError = `Chat API error: ${response.status} ${response.statusText}`;
+    break;
+  }
 
-        const errorBody = await response.text();
-        lastError = `Chat API 422: ${errorBody}`;
-      }
-
+  const errorBody = await response.text();
+  lastError = `Chat API 422: ${errorBody}`;
+}
       if (!response?.ok) {
         console.error(lastError);
         responseText = lastError || responseText;
@@ -158,7 +158,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ isOpen, onClose, session
           hour: "2-digit",
           minute: "2-digit",
         }),
-      }; 
+      };
 
       setMessages((prev) => [...prev, aiMsg]);
     } catch (error) {

@@ -131,7 +131,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({ isOpen, onClose, sessi
         session_id: propSessionId || sessionId,
         message: transcript,
         language: selectedLang,
-    }),
+    }), 
 });
 
       const data = await response.json();

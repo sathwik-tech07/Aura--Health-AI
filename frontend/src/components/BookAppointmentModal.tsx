@@ -33,7 +33,7 @@ const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, defaultDoctor,
   }, []);
   const t = I18N[lang] || I18N.en;
 
-  const API_URL = "https://aura-health-ai.onrender.com"; 
+  const API = "https://aura-health-ai.onrender.com"; 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -55,7 +55,7 @@ const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, defaultDoctor,
         phone,
         doctor_id: Number(doctor),
         appointment_date: date,
-        appointment_time: time,
+        appointment_time: time, 
         symptoms,
       };
       if (sessionId) payload.session_id = sessionId;
@@ -88,7 +88,7 @@ const BookAppointmentModal: React.FC<Props> = ({ isOpen, onClose, defaultDoctor,
           else if (byName) setDoctor(byName.id);
         }
       } catch (err) {
-        console.error(err);
+        console.error(err); 
       } finally {
         setLoadingDoctors(false);
       }
