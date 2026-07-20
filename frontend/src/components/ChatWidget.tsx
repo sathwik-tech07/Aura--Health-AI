@@ -121,8 +121,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ isOpen, onClose, session
       let data: any = null;
       let responseText = "No response from server.";
       let lastError: string | null = null;
-
-     for (const payload of payloadVariants) {
+for (const payload of payloadVariants) {
   response = await fetch("https://aura-health-ai.onrender.com/chat", {
     method: "POST",
     headers: {
@@ -143,7 +142,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ isOpen, onClose, session
 
   const errorBody = await response.text();
   lastError = `Chat API 422: ${errorBody}`;
-}
+} 
       if (!response?.ok) {
         console.error(lastError);
         responseText = lastError || responseText;
