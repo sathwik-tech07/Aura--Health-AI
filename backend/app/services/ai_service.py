@@ -1,6 +1,5 @@
 from app.services.summary_service import generate_summary
 from google import genai  
-from pathlib import Path
 from dotenv import load_dotenv
 import os
 
@@ -15,7 +14,7 @@ from app.services.memory_service import (
 # Load environment variables
 load_dotenv()
 
-API_KEY = os.getenv("GEMINI_API_KEY")
+API_KEY = os.getenv("GEMINI_API_KEY") 
 
 client = genai.Client(api_key=API_KEY)
 
@@ -54,10 +53,9 @@ def generate_with_fallback(prompt):
 
     raise Exception(f"All Gemini models failed.\n{last_error}")
 
-
 def generate_response(session_id, user_message, language="en"):
     try:
-       knowledge = """
+        knowledge = """
 Aura Health AI
 
 Clinic Hours:
@@ -79,12 +77,8 @@ Patients can book, reschedule, or cancel appointments through Aura Health AI.
 
 Contact:
 Email: support@aurahealthai.com
-Phone: +91-9876543210 
-""" 
-
-        with open(knowledge_file, "r", encoding="utf-8") as f:
-            knowledge = f.read()
-
+Phone: +91-9876543210
+"""    
         # Get previous conversation
         history = get_history(session_id)
 
