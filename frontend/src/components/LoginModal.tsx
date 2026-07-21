@@ -1,4 +1,4 @@
-import React, { useState } from "react"; 
+import React, { useState } from "react";
 import axios from "axios";
 
 const API = "https://aura-health-ai.onrender.com";
@@ -13,7 +13,7 @@ const LoginModal: React.FC<Props> = ({
   open,
   onClose,
   onLogin,
-}) => { 
+}) => {
   const [isRegister, setIsRegister] = useState(false);
 
   const [name, setName] = useState("");
@@ -41,30 +41,49 @@ const LoginModal: React.FC<Props> = ({
 
         setIsRegister(false);
         setPassword("");
-      } else {
-        const res = await axios.post(`${API}/login`, {
-          email,
-          password,
-        });
 
-        const token = res.data.token;
-
-        localStorage.setItem("aura_token", token);
-
-        axios.defaults.headers.common[
-          "Authorization"
-        ] = `Bearer ${token}`;
-
-        if (onLogin) {
-          onLogin(token);
-        }
-
-        onClose();
+        return;
       }
+
+      const res = await axios.post(`${API}/login`, {
+        email,
+        password,
+      });
+
+      console.log("Login Response:", res.data);
+
+      const token =
+        res.data.access_token ||
+        res.data.token ||
+        "";
+
+      if (!token) {
+        throw new Error("Token not received from server.");
+      }
+
+      localStorage.setItem("aura_token", token);
+
+      axios.defaults.headers.common[
+        "Authorization"
+      ] = `Bearer ${token}`;
+
+      onLogin?.(token);
+
+      onClose();
     } catch (err: any) {
-      setError(
-        err.response?.data?.detail || "Something went wrong"
-      );
+      console.error(err);
+
+      const detail = err.response?.data?.detail;
+
+      if (typeof detail === "string") {
+        setError(detail);
+      } else if (Array.isArray(detail)) {
+        setError(detail.map((e: any) => e.msg).join(", "));
+      } else if (err.message) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong.");
+      }
     } finally {
       setLoading(false);
     }
@@ -101,20 +120,20 @@ const LoginModal: React.FC<Props> = ({
           onChange={(e) => setEmail(e.target.value)}
         />
 
-       <input
-  type="password"
-  placeholder="Password"
-  maxLength={72}
-  className="w-full mb-4 p-3 rounded bg-white/5 text-white"
-  value={password}
-  onChange={(e) => setPassword(e.target.value)}
-/>
+        <input
+          type="password"
+          placeholder="Password"
+          maxLength={72}
+          className="w-full mb-4 p-3 rounded bg-white/5 text-white"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
 
         {error && (
           <p className="text-red-500 mb-3">
             {error}
           </p>
-        )} 
+        )}
 
         <button
           onClick={submit}
