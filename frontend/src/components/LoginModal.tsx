@@ -101,19 +101,20 @@ const LoginModal: React.FC<Props> = ({
           onChange={(e) => setEmail(e.target.value)}
         />
 
-        <input
-          type="password"
-          placeholder="Password"
-          className="w-full mb-4 p-3 rounded bg-white/5 text-white"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+       <input
+  type="password"
+  placeholder="Password"
+  maxLength={72}
+  className="w-full mb-4 p-3 rounded bg-white/5 text-white"
+  value={password}
+  onChange={(e) => setPassword(e.target.value)}
+/>
 
         {error && (
           <p className="text-red-500 mb-3">
             {error}
           </p>
-        )}
+        )} 
 
         <button
           onClick={submit}
