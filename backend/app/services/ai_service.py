@@ -57,12 +57,30 @@ def generate_with_fallback(prompt):
 
 def generate_response(session_id, user_message, language="en"):
     try:
-        # Read clinic knowledge
-        knowledge_file = (
-            Path(__file__).resolve().parents[3]
-            / "knowledge"
-            / "clinic_info.txt"
-        )
+       knowledge = """
+Aura Health AI
+
+Clinic Hours:
+Monday - Saturday
+9:00 AM - 6:00 PM
+
+Services:
+- General Consultation
+- Symptom Assessment
+- Appointment Booking
+- Billing Assistance
+- Health FAQs
+
+Emergency:
+For medical emergencies, immediately contact your nearest hospital or emergency services.
+
+Appointments:
+Patients can book, reschedule, or cancel appointments through Aura Health AI.
+
+Contact:
+Email: support@aurahealthai.com
+Phone: +91-9876543210 
+""" 
 
         with open(knowledge_file, "r", encoding="utf-8") as f:
             knowledge = f.read()
