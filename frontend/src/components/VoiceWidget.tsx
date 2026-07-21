@@ -122,8 +122,8 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({ isOpen, onClose, sessi
     setLiveText("You: " + transcript);
 
     try {
-      const response = await fetch("https://aura-health-ai.onrender.com", {
-    method: "POST",
+      const response = await fetch("https://aura-health-ai.onrender.com/chat", {
+    method: "POST", 
     headers: {
         "Content-Type": "application/json",
     },
