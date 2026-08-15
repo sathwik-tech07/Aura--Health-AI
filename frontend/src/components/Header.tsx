@@ -1,105 +1,214 @@
+import React, { useState } from 'react';
 import {
   Home,
+  LayoutDashboard,
   Stethoscope,
   Calendar,
-  MessageCircle,
+  MessageSquare,
   LogIn,
   LogOut,
   Activity,
-} from "lucide-react"; 
+  Menu,
+  X,
+} from 'lucide-react';
+import LanguageSelector from './LanguageSelector';
 
-type PageKey = "none" | "appointments" | "conversations" | "doctors";
+export type PageKey = 'none' | 'dashboard' | 'appointments' | 'conversations' | 'doctors';
 
 interface HeaderProps {
+  currentPage: PageKey;
   token: string | null;
   onLogin: () => void;
   onLogout: () => void;
   onNavigate: (page: PageKey) => void;
+  onStartChat: () => void;
+  onStartVoice: () => void;
 }
 
-export default function Header({
+export const Header: React.FC<HeaderProps> = ({
+  currentPage,
   token,
   onLogin,
   onLogout,
   onNavigate,
-}: HeaderProps) {
+  onStartChat,
+  onStartVoice,
+}) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const navItems = [
+    { key: 'none' as PageKey, label: 'Home', icon: Home },
+    { key: 'dashboard' as PageKey, label: 'Dashboard', icon: LayoutDashboard },
+    { key: 'doctors' as PageKey, label: 'Doctors', icon: Stethoscope },
+    { key: 'appointments' as PageKey, label: 'Appointments', icon: Calendar },
+    { key: 'conversations' as PageKey, label: 'Conversations', icon: MessageSquare },
+  ];
+
+  const handleNav = (key: PageKey) => {
+    onNavigate(key);
+    setMobileMenuOpen(false);
+  };
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 px-8 py-5">
+    <header className="fixed top-0 left-0 right-0 z-40 px-4 sm:px-6 lg:px-12 py-4 bg-dark-950/80 backdrop-blur-xl border-b border-white/5 transition-all">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-
         {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center">
-            <Activity className="w-6 h-6 text-cyan-400" />
+        <div
+          onClick={() => handleNav('none')}
+          className="flex items-center gap-3 cursor-pointer group"
+        >
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-center group-hover:border-cyan-400 transition-all">
+            <Activity className="w-5 h-5 text-cyan-400 animate-pulse" />
           </div>
-
           <div>
-            <h1 className="text-2xl font-bold">
+            <h1 className="text-lg font-bold text-white tracking-tight">
               Aura<span className="text-cyan-400">Health AI</span>
+              <span className="ml-2 text-[10px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 px-1.5 py-0.5 rounded-full font-mono">
+                V2
+              </span>
             </h1>
-
-            <p className="text-xs tracking-widest text-cyan-400 uppercase">
+            <p className="text-[9px] tracking-widest text-gray-400 uppercase">
               Multi-Agent Healthcare Platform
             </p>
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex items-center gap-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full px-3 py-2">
+        {/* Desktop Navigation */}
+        <nav className="hidden lg:flex items-center gap-1 bg-white/5 backdrop-blur-xl border border-white/10 rounded-full px-3 py-1.5 shadow-inner">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentPage === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => handleNav(item.key)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
+                  isActive
+                    ? 'bg-cyan-500 text-dark-950 font-bold shadow-[0_0_15px_rgba(6,182,212,0.3)]'
+                    : 'text-gray-300 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <Icon size={14} />
+                {item.label}
+              </button>
+            );
+          })}
+        </nav>
 
+        {/* Right Tools: Language, Auth & Action */}
+        <div className="hidden sm:flex items-center gap-3">
+          {/* Header Language Picker */}
+          <LanguageSelector variant="header" />
+
+          {/* Quick AI Trigger */}
           <button
-            onClick={() => onNavigate("none")}
-            className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-white/10 transition"
+            onClick={onStartChat}
+            className="px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/20 transition"
           >
-            <Home size={16} />
-            Home
+            🩺 AI Chat
           </button>
-
-          <button
-            onClick={() => onNavigate("doctors")}
-            className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-white/10 transition"
-          >
-            <Stethoscope size={16} />
-            Doctors
-          </button>
-
-          <button
-            onClick={() => onNavigate("appointments")}
-            className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-white/10 transition"
-          >
-            <Calendar size={16} />
-            Appointments
-          </button>
-
-          <button
-            onClick={() => onNavigate("conversations")}
-            className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-white/10 transition"
-          >
-            <MessageCircle size={16} />
-            Conversations
-          </button>
-
-          <div className="w-px h-6 bg-white/10 mx-1"></div>
 
           {!token ? (
             <button
               onClick={onLogin}
-              className="flex items-center gap-2 px-5 py-2 rounded-full bg-cyan-500 text-black font-semibold hover:bg-cyan-400 transition"
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-cyan-500 text-dark-950 text-xs font-bold hover:bg-cyan-400 shadow-md transition"
             >
-              <LogIn size={16} />
+              <LogIn size={14} />
               Login
             </button>
           ) : (
             <button
               onClick={onLogout}
-              className="flex items-center gap-2 px-4 py-2 rounded-full border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-all duration-300"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white text-xs font-medium transition-all"
             >
-              <LogOut size={16} />
+              <LogOut size={14} />
               Logout
             </button>
           )}
-        </nav>
+        </div>
+
+        {/* Mobile Hamburger Button */}
+        <div className="flex items-center gap-2 lg:hidden">
+          <LanguageSelector variant="header" />
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 rounded-xl bg-white/5 border border-white/10 text-gray-300 hover:text-white"
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
+        </div>
       </div>
+
+      {/* Mobile Drawer Menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden mt-3 pt-3 border-t border-white/10 flex flex-col gap-2 pb-2">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentPage === item.key;
+            return (
+              <button
+                key={item.key}
+                onClick={() => handleNav(item.key)}
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition ${
+                  isActive
+                    ? 'bg-cyan-500 text-dark-950 font-bold'
+                    : 'text-gray-300 hover:bg-white/5'
+                }`}
+              >
+                <Icon size={16} />
+                {item.label}
+              </button>
+            );
+          })}
+
+          <div className="pt-2 border-t border-white/5 flex gap-2">
+            <button
+              onClick={() => {
+                onStartChat();
+                setMobileMenuOpen(false);
+              }}
+              className="flex-1 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-bold"
+            >
+              AI Triage Chat
+            </button>
+            <button
+              onClick={() => {
+                onStartVoice();
+                setMobileMenuOpen(false);
+              }}
+              className="flex-1 py-2 rounded-xl bg-blue-500/20 text-blue-300 border border-blue-500/40 text-xs font-bold"
+            >
+              Voice Call
+            </button>
+          </div>
+
+          <div className="pt-2">
+            {!token ? (
+              <button
+                onClick={() => {
+                  onLogin();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full py-2.5 rounded-xl bg-cyan-500 text-dark-950 font-bold text-sm"
+              >
+                Login to Patient Portal
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  onLogout();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-bold text-sm"
+              >
+                Logout
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
-}
+};
+
+export default Header;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ParticlesBackground } from './components/ParticlesBackground';
+import { Header, type PageKey } from './components/Header';
 import { Hero } from './components/Hero';
 import { Features } from './components/Features';
 import { VoiceDemo } from './components/VoiceDemo';
@@ -8,16 +9,14 @@ import { Testimonials } from './components/Testimonials';
 import { CTA } from './components/CTA';
 import { ChatWidget } from './components/ChatWidget';
 import { VoiceWidget } from './components/VoiceWidget';
+import { PatientDashboard } from './components/PatientDashboard';
 import BookAppointmentModal from './components/BookAppointmentModal';
-import axios from 'axios';
 import AppointmentHistory from './pages/AppointmentHistory';
 import ConversationHistory from './pages/ConversationHistory';
 import DoctorDirectory from './pages/DoctorDirectory';
 import SessionBadge from './components/SessionBadge';
 import LanguageSelector from './components/LanguageSelector';
 import LoginModal from './components/LoginModal';
-
-type PageKey = 'none' | 'appointments' | 'conversations' | 'doctors';
 
 function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -28,72 +27,66 @@ function App() {
   const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
   const [recentAppointment, setRecentAppointment] = useState<any | null>(null);
 
-  // Logged-in user token
+  // User authentication token state
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('aura_token');
   });
 
-  // Login modal opens automatically if not logged in
-  const [loginOpen, setLoginOpen] = useState(!token);
+  const [loginOpen, setLoginOpen] = useState(false);
 
-  const [sessionId] = useState<string | null>(() => {
+  // Persistent session ID
+  const [sessionId] = useState<string>(() => {
     try {
       const existing = localStorage.getItem('aura_session_id');
-
-      if (existing) return existing; 
+      if (existing) return existing;
 
       const id =
         (crypto as any)?.randomUUID?.() ??
         `s-${Math.random().toString(36).slice(2, 10)}`;
 
       localStorage.setItem('aura_session_id', id);
-
       return id;
     } catch {
       return `s-${Math.random().toString(36).slice(2, 10)}`;
     }
   });
 
+  // Scroll to top on page change
   useEffect(() => {
-    if (page !== 'none') {
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth',
-      });
-    }
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
   }, [page]);
-
-  const isLanding = page === 'none';
 
   const handleLogout = () => {
     localStorage.removeItem('aura_token');
-
+    localStorage.removeItem('aura_user');
     setToken(null);
-
-    setLoginOpen(true);
-
-    try {
-      delete axios.defaults.headers.common['Authorization'];
-    } catch {}
+    setPage('none');
   };
 
-  const btnClass = (key: PageKey | 'book') => {
-    const active =
-      (key === 'book' && isBookOpen) ||
-      (key !== 'book' && page === key);
-
-    return active
-      ? 'bg-cyan-500 text-dark-950 px-3 py-2 rounded-lg'
-      : 'bg-white/5 text-gray-200 px-3 py-2 rounded-lg';
-  };
+  const isLanding = page === 'none';
 
   return (
     <div className="relative min-h-screen bg-dark-950 text-gray-100 overflow-x-hidden">
       <ParticlesBackground />
 
+      {/* Top Header Navigation */}
+      <Header
+        currentPage={page}
+        token={token}
+        onLogin={() => setLoginOpen(true)}
+        onLogout={handleLogout}
+        onNavigate={(p) => setPage(p)}
+        onStartChat={() => setIsChatOpen(true)}
+        onStartVoice={() => setIsVoiceOpen(true)}
+      />
+
+      {/* Landing Page View */}
       {isLanding && (
-        <>
+        <main>
           <Hero
             onStartChat={() => setIsChatOpen(true)}
             onStartVoice={() => setIsVoiceOpen(true)}
@@ -108,94 +101,72 @@ function App() {
           <Testimonials />
 
           <CTA onStartChat={() => setIsChatOpen(true)} />
-        </>
+        </main>
       )}
-            {/* Conditional Pages */}
+
+      {/* Patient Dashboard View */}
+      {page === 'dashboard' && (
+        <main>
+          <PatientDashboard
+            onStartChat={() => setIsChatOpen(true)}
+            onStartVoice={() => setIsVoiceOpen(true)}
+            onOpenBookModal={(doctorId) => {
+              setSelectedDoctor(doctorId || null);
+              setIsBookOpen(true);
+            }}
+            onNavigate={(p) => setPage(p)}
+            sessionId={sessionId}
+          />
+        </main>
+      )}
+
+      {/* Appointment History Page */}
       {page === 'appointments' && (
-        <AppointmentHistory
-          onBack={() => {
-            setPage('none');
-            setRecentAppointment(null);
-          }}
-          newAppointment={recentAppointment}
-        />
+        <main>
+          <AppointmentHistory
+            onBack={() => {
+              setPage('none');
+              setRecentAppointment(null);
+            }}
+            newAppointment={recentAppointment}
+            onBookMore={() => {
+              setSelectedDoctor(null);
+              setIsBookOpen(true);
+            }}
+          />
+        </main>
       )}
 
+      {/* Conversation History Page */}
       {page === 'conversations' && (
-        <ConversationHistory
-          onBack={() => setPage('none')}
-          sessionId={sessionId || undefined}
-        />
+        <main>
+          <ConversationHistory
+            onBack={() => setPage('none')}
+            sessionId={sessionId}
+            onStartNewChat={() => setIsChatOpen(true)}
+          />
+        </main>
       )}
 
+      {/* Doctor Directory Page */}
       {page === 'doctors' && (
-        <DoctorDirectory
-          onBack={() => setPage('none')}
-          onBook={(doctorId: string) => {
-            setSelectedDoctor(doctorId || null);
-            setIsBookOpen(true);
-          }}
-        />
+        <main>
+          <DoctorDirectory
+            onBack={() => setPage('none')}
+            onBook={(doctorId: string) => {
+              setSelectedDoctor(doctorId || null);
+              setIsBookOpen(true);
+            }}
+          />
+        </main>
       )}
 
-      {/* Floating Quick Actions */}
-      <div className="fixed right-6 top-1/2 transform -translate-y-1/2 z-40 flex flex-col gap-3">
-        <button
-          onClick={() => {
-            setSelectedDoctor(null);
-            setIsBookOpen(true);
-          }}
-          className={btnClass('book')}
-        >
-          Book
-        </button>
-
-        <button
-          onClick={() =>
-            setPage(page === 'appointments' ? 'none' : 'appointments')
-          }
-          className={btnClass('appointments')}
-        >
-          Appointments
-        </button>
-
-        <button
-          onClick={() =>
-            setPage(page === 'conversations' ? 'none' : 'conversations')
-          }
-          className={btnClass('conversations')}
-        >
-          Conversations
-        </button>
-
-        <button
-          onClick={() =>
-            setPage(page === 'doctors' ? 'none' : 'doctors')
-          }
-          className={btnClass('doctors')}
-        >
-          Doctors
-        </button>
-      </div>
-
-      {/* Logout Button (shown only after login) */}
-      {token && (
-        <div className="fixed right-6 top-6 z-50">
-          <button
-            onClick={handleLogout}
-            className="px-3 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white transition"
-          >
-            Logout
-          </button>
-        </div>
-      )}
-
-      {/* Book Appointment */}
+      {/* Book Appointment Modal */}
       <BookAppointmentModal
         isOpen={isBookOpen}
         onClose={() => setIsBookOpen(false)}
         defaultDoctor={selectedDoctor || undefined}
-        sessionId={sessionId || undefined}
+        sessionId={sessionId}
         onSuccess={(appt) => {
           setIsBookOpen(false);
           setRecentAppointment(appt || null);
@@ -203,39 +174,42 @@ function App() {
         }}
       />
 
-      {/* Chat Widget */}
+      {/* Chat Widget Modal */}
       <ChatWidget
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
-        sessionId={sessionId || undefined}
+        sessionId={sessionId}
+        onOpenBookModal={(doc) => {
+          setIsChatOpen(false);
+          setSelectedDoctor(doc || null);
+          setIsBookOpen(true);
+        }}
       />
 
-      {/* Voice Widget */}
+      {/* Voice AI Widget Modal */}
       <VoiceWidget
         isOpen={isVoiceOpen}
         onClose={() => setIsVoiceOpen(false)}
-        sessionId={sessionId || undefined}
+        sessionId={sessionId}
       />
-            {/* Session Badge */}
+
+      {/* Floating Session Badge */}
       <SessionBadge sessionId={sessionId} />
 
-      {/* Language Selector */}
-      <LanguageSelector />
+      {/* Floating Language Selector */}
+      <LanguageSelector variant="floating" />
 
-      {/* Login Modal */}
+      {/* Login & Register Modal */}
       <LoginModal
-       
-  open={loginOpen}
-  onClose={() => setLoginOpen(false)}
-  onLogin={(t) => {
-    localStorage.setItem("aura_token", t);
-    setToken(t);
-    setLoginOpen(false);
-  }}
-/>
-      
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        onLogin={(t) => {
+          setToken(t);
+          setLoginOpen(false);
+        }}
+      />
     </div>
   );
 }
 
-export default App; 
+export default App;
