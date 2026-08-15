@@ -1,4 +1,5 @@
 import os
+import base64
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 
@@ -37,7 +38,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="AuraHealth AI V2",
-    description="Production-grade AI Healthcare Platform with Multi-Agent Triage, Voice AI, and Clinical Scheduling",
+    description="Production-grade AI Healthcare Platform with Multi-Agent Triage, Complete Voice AI, and Clinical Scheduling",
     version="2.0.0",
     lifespan=lifespan,
 )
@@ -55,6 +56,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Aura-Response-Base64", "X-Aura-Language", "X-Aura-Session-Id"],
 )
 
 # Register Routers
@@ -70,7 +72,7 @@ def root():
         "status": "online",
         "version": "2.0.0",
         "project": "AuraHealth AI V2",
-        "message": "AI Healthcare Multi-Agent & Voice Assistant Running",
+        "message": "AI Healthcare Multi-Agent & Complete Voice Assistant Running",
     }
 
 
@@ -97,29 +99,38 @@ def dashboard(request: ChatRequest):
 
 @app.post("/voice")
 def voice(request: ChatRequest):
+    # 1. Generate COMPLETE clinical AI response
     response = generate_response(
         request.session_id,
         request.message,
         request.language,
     )
 
+    # 2. Convert COMPLETE response to speech using ElevenLabs (no truncation)
     audio = text_to_speech(
         response,
         request.language,
     )
 
+    # Base64 encode the complete response text (preserves 100% of Telugu, Hindi, English, etc.)
+    response_b64 = base64.b64encode(response.encode("utf-8")).decode("ascii")
+
     if audio is None:
+        # Return complete response in JSON with error flag for client-side SpeechSynthesis
         return {
-            "error": "Voice generation unavailable",
+            "error": "ElevenLabs voice generation unavailable",
             "response": response,
             "language": request.language,
+            "session_id": request.session_id,
         }
 
+    # Return complete audio stream with complete text encoded in header
     return Response(
         content=audio,
         media_type="audio/mpeg",
         headers={
-            "X-Aura-Response": response[:200].encode("ascii", "ignore").decode("ascii"),
+            "X-Aura-Response-Base64": response_b64,
             "X-Aura-Language": request.language,
+            "X-Aura-Session-Id": request.session_id,
         },
     )

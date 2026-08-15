@@ -51,6 +51,8 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
   const recognitionRef = useRef<any>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const isProcessingRef = useRef<boolean>(false);
+  const speechQueueRef = useRef<string[]>([]);
+  const isSpeakingUtteranceRef = useRef<boolean>(false);
 
   // Sync language with global language
   useEffect(() => {
@@ -88,7 +90,9 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
     setVoiceState('idle');
     setTimer(0);
     setTranscript('');
-    setAiResponseText('Hello! I am Aura, your clinical AI nurse. How can I assist you today? Click the microphone and speak.');
+    setAiResponseText(
+      'Hello! I am Aura, your clinical AI nurse. Ask any health, appointment, or clinic question and I will answer you completely.'
+    );
     setErrorMessage('');
   }, [isOpen]);
 
@@ -112,6 +116,9 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
       audioPlayerRef.current = null;
     }
 
+    speechQueueRef.current = [];
+    isSpeakingUtteranceRef.current = false;
+
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
@@ -126,35 +133,92 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
   const handleStopSpeaking = () => {
     stopAllAudio();
     setVoiceState('idle');
+    isProcessingRef.current = false;
   };
 
-  const playSpeechSynthesisFallback = (text: string, langCode: string) => {
+  // Helper to decode Base64 UTF-8 text (handles Telugu, Hindi, Chinese, etc. safely)
+  const decodeBase64Utf8 = (b64: string): string => {
+    try {
+      const binaryString = atob(b64);
+      const bytes = Uint8Array.from(binaryString, (m) => m.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    } catch {
+      try {
+        return decodeURIComponent(escape(atob(b64)));
+      } catch {
+        return atob(b64);
+      }
+    }
+  };
+
+  // Robust browser SpeechSynthesis for complete long responses with sentence queueing
+  const playCompleteSpeechSynthesis = (fullText: string, langCode: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis || isSpeakerMuted) {
       setVoiceState('idle');
+      isProcessingRef.current = false;
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = langCode;
+    stopAllAudio();
+
+    // Clean emojis & formatting for smooth speech synthesis
+    const cleanText = fullText
+      .replace(/[*#_`~]/g, '')
+      .replace(/[🚨🟢🔴🟡📊👨‍⚕️🏥💰🩺📋🕒⚠️]/gu, '')
+      .trim();
+
+    if (!cleanText) {
+      setVoiceState('idle');
+      isProcessingRef.current = false;
+      return;
+    }
+
+    // Split into natural sentences so Chrome doesn't drop long answers
+    const sentences = cleanText.match(/[^.!?।\n]+[.!?।\n]+/g) || [cleanText];
+    speechQueueRef.current = sentences.map((s) => s.trim()).filter(Boolean);
 
     const voices = window.speechSynthesis.getVoices() || [];
-    const match = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith(langCode.toLowerCase()));
-    if (match) utterance.voice = match;
+    const matchedVoice = voices.find(
+      (v) => v.lang && v.lang.toLowerCase().startsWith(langCode.toLowerCase())
+    );
 
-    utterance.onstart = () => {
-      setVoiceState('speaking');
-    };
-    utterance.onend = () => {
-      setVoiceState('idle');
-      isProcessingRef.current = false;
-    };
-    utterance.onerror = () => {
-      setVoiceState('idle');
-      isProcessingRef.current = false;
+    const speakNextSentence = () => {
+      if (speechQueueRef.current.length === 0) {
+        setVoiceState('idle');
+        isProcessingRef.current = false;
+        isSpeakingUtteranceRef.current = false;
+        return;
+      }
+
+      const nextText = speechQueueRef.current.shift();
+      if (!nextText) {
+        speakNextSentence();
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(nextText);
+      utterance.lang = langCode;
+      if (matchedVoice) utterance.voice = matchedVoice;
+      utterance.rate = 0.95;
+
+      utterance.onstart = () => {
+        setVoiceState('speaking');
+        isSpeakingUtteranceRef.current = true;
+      };
+
+      utterance.onend = () => {
+        speakNextSentence();
+      };
+
+      utterance.onerror = (e) => {
+        console.warn('Utterance error:', e);
+        speakNextSentence();
+      };
+
+      window.speechSynthesis.speak(utterance);
     };
 
-    window.speechSynthesis.speak(utterance);
+    speakNextSentence();
   };
 
   const processSpokenInput = async (spokenText: string) => {
@@ -166,7 +230,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
     setErrorMessage('');
 
     try {
-      // 1. Send query to backend voice endpoint
+      // 1. Send complete user speech to backend /voice endpoint
       const response = await fetch(`${API_BASE_URL}/voice`, {
         method: 'POST',
         headers: {
@@ -182,12 +246,21 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
       const contentType = response.headers.get('content-type') || '';
 
       if (response.ok && contentType.includes('audio/mpeg')) {
+        // Extract the COMPLETE text from the response header (base64 encoded UTF-8)
+        const b64Response = response.headers.get('X-Aura-Response-Base64');
+        let fullAnswerText = '';
+
+        if (b64Response) {
+          fullAnswerText = decodeBase64Utf8(b64Response);
+        } else {
+          fullAnswerText = 'Clinical response generated.';
+        }
+
+        // Set the EXACT complete answer in the UI
+        setAiResponseText(fullAnswerText);
+
         const audioBlob = await response.blob();
         const audioUrl = URL.createObjectURL(audioBlob);
-
-        // Retrieve AI text from header or fallback query
-        const rawHeaderResponse = response.headers.get('X-Aura-Response') || 'Clinical triage response generated.';
-        setAiResponseText(rawHeaderResponse);
 
         if (!isSpeakerMuted) {
           stopAllAudio();
@@ -200,8 +273,8 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
             isProcessingRef.current = false;
           };
           audio.onerror = () => {
-            console.warn('Audio playback error, fallback to browser speech synthesis');
-            playSpeechSynthesisFallback(rawHeaderResponse, selectedLang);
+            console.warn('Audio playback error, falling back to complete browser speech synthesis');
+            playCompleteSpeechSynthesis(fullAnswerText, selectedLang);
           };
 
           await audio.play();
@@ -210,21 +283,25 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
           isProcessingRef.current = false;
         }
       } else {
-        // Voice endpoint returned JSON (e.g. ElevenLabs fallback or text response)
+        // JSON response returned (e.g. ElevenLabs fallback)
         const data = await response.json();
-        const responseText = data.response || data.text || 'I have received your inquiry. Please consult a doctor if symptoms persist.';
-        setAiResponseText(responseText);
+        const fullAnswerText =
+          data.response ||
+          data.text ||
+          'Thank you for contacting Aura Health. Please consult a clinician.';
+
+        // Set the EXACT complete answer in the UI
+        setAiResponseText(fullAnswerText);
 
         if (!isSpeakerMuted) {
-          playSpeechSynthesisFallback(responseText, selectedLang);
+          playCompleteSpeechSynthesis(fullAnswerText, selectedLang);
         } else {
           setVoiceState('idle');
           isProcessingRef.current = false;
         }
       }
     } catch (err: any) {
-      console.error('Voice processing error:', err);
-      // Try /chat fallback
+      console.error('Voice endpoint error, trying /chat fallback:', err);
       try {
         const chatRes = await fetch(`${API_BASE_URL}/chat`, {
           method: 'POST',
@@ -236,9 +313,9 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
           }),
         });
         const chatData = await chatRes.json();
-        const reply = chatData.response || 'Please consult our healthcare team.';
-        setAiResponseText(reply);
-        playSpeechSynthesisFallback(reply, selectedLang);
+        const fullAnswerText = chatData.response || 'Please consult our healthcare team.';
+        setAiResponseText(fullAnswerText);
+        playCompleteSpeechSynthesis(fullAnswerText, selectedLang);
       } catch {
         setVoiceState('error');
         setErrorMessage('Could not connect to medical voice core. Please check your connection and retry.');
@@ -265,7 +342,18 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
 
-      recognition.lang = selectedLang === 'hi' ? 'hi-IN' : selectedLang === 'te' ? 'te-IN' : selectedLang;
+      recognition.lang =
+        selectedLang === 'hi'
+          ? 'hi-IN'
+          : selectedLang === 'te'
+          ? 'te-IN'
+          : selectedLang === 'ta'
+          ? 'ta-IN'
+          : selectedLang === 'bn'
+          ? 'bn-IN'
+          : selectedLang === 'mr'
+          ? 'mr-IN'
+          : selectedLang;
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
 
@@ -371,7 +459,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 30 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="relative w-full max-w-md bg-dark-950/95 border border-cyan-500/25 rounded-3xl p-7 shadow-[0_0_60px_rgba(6,182,212,0.25)] flex flex-col items-center justify-between min-h-[550px] z-10 overflow-hidden"
+            className="relative w-full max-w-lg bg-dark-950/95 border border-cyan-500/25 rounded-3xl p-6 sm:p-7 shadow-[0_0_60px_rgba(6,182,212,0.25)] flex flex-col items-center justify-between min-h-[580px] max-h-[90vh] z-10 overflow-hidden"
           >
             {/* Cyber background */}
             <div className="absolute inset-0 cyber-grid opacity-[0.08] pointer-events-none" />
@@ -380,7 +468,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
             <div className="w-full flex justify-between items-center relative z-10">
               <span className="text-[10px] uppercase font-bold tracking-widest text-cyan-400 flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                Aura Voice AI Triage V2
+                Aura Voice AI &middot; Complete Speech Core
               </span>
               <div className="flex items-center gap-2">
                 <select
@@ -406,8 +494,8 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
             </div>
 
             {/* Main Avatar Graphic & State Visualizer */}
-            <div className="flex flex-col items-center my-4 relative z-10">
-              <div className="relative flex items-center justify-center w-36 h-36 mb-4">
+            <div className="flex flex-col items-center my-3 relative z-10">
+              <div className="relative flex items-center justify-center w-32 h-32 mb-3">
                 <AnimatePresence>
                   {voiceState === 'listening' && (
                     <motion.div
@@ -438,7 +526,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
 
                 {/* Center circle */}
                 <div
-                  className={`w-28 h-28 rounded-full bg-gradient-to-tr from-dark-900 to-dark-800 border flex items-center justify-center transition-all duration-500
+                  className={`w-24 h-24 rounded-full bg-gradient-to-tr from-dark-900 to-dark-800 border flex items-center justify-center transition-all duration-500
                     ${
                       voiceState === 'listening'
                         ? 'border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.35)]'
@@ -452,67 +540,69 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
                     }`}
                 >
                   {voiceState === 'listening' ? (
-                    <Mic className="w-12 h-12 text-rose-400 animate-pulse" />
+                    <Mic className="w-10 h-10 text-rose-400 animate-pulse" />
                   ) : voiceState === 'thinking' ? (
-                    <Sparkles className="w-10 h-10 text-yellow-300 animate-spin-slow" />
+                    <Sparkles className="w-9 h-9 text-yellow-300 animate-spin-slow" />
                   ) : voiceState === 'speaking' ? (
-                    <Activity className="w-12 h-12 text-cyan-400 animate-pulse" />
+                    <Activity className="w-10 h-10 text-cyan-400 animate-pulse" />
                   ) : voiceState === 'error' ? (
-                    <AlertTriangle className="w-10 h-10 text-red-400" />
+                    <AlertTriangle className="w-9 h-9 text-red-400" />
                   ) : (
-                    <Activity className="w-12 h-12 text-gray-400" />
+                    <Activity className="w-10 h-10 text-gray-400" />
                   )}
                 </div>
               </div>
 
               {/* State label */}
-              <h3 className="text-lg font-bold text-white tracking-tight mb-1">
+              <h3 className="text-base font-bold text-white tracking-tight mb-0.5">
                 {voiceState === 'listening'
                   ? 'Listening to Patient...'
                   : voiceState === 'thinking'
-                  ? 'Clinical AI Thinking...'
+                  ? 'Generating Complete Clinical Answer...'
                   : voiceState === 'speaking'
-                  ? 'Aura AI Speaking'
+                  ? 'Aura AI Speaking Complete Answer'
                   : voiceState === 'error'
                   ? 'Voice Connection Issue'
-                  : 'Aura Health Voice Core'}
+                  : 'Aura Health Complete Voice Assistant'}
               </h3>
-              <p className="text-xs font-semibold uppercase tracking-widest text-cyan-400">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-cyan-400">
                 {formatTime(timer)} &middot; {selectedLang.toUpperCase()}
               </p>
             </div>
 
             {/* Audio Waveform */}
-            <div className="w-full relative z-10 my-2">{renderWaveform()}</div>
+            <div className="w-full relative z-10 my-1">{renderWaveform()}</div>
 
-            {/* Live Transcript / Response Console */}
-            <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-3.5 min-h-[90px] max-h-[120px] overflow-y-auto mb-4 flex flex-col justify-center relative z-10">
+            {/* Live Complete Response Console (Full Untruncated Text Display) */}
+            <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 min-h-[120px] max-h-[160px] overflow-y-auto mb-3 flex flex-col justify-start relative z-10 shadow-inner">
               {errorMessage ? (
-                <div className="text-center text-xs text-rose-400 flex flex-col items-center gap-1">
+                <div className="text-center text-xs text-rose-400 flex flex-col items-center gap-1 my-auto">
                   <AlertTriangle className="w-4 h-4 text-rose-400" />
                   <span>{errorMessage}</span>
                 </div>
               ) : voiceState === 'listening' ? (
-                <p className="text-center text-xs text-gray-400 italic">
-                  Listening... speak clearly about your symptoms or scheduling request.
+                <p className="text-center text-xs text-gray-400 italic my-auto">
+                  Listening... Speak your complete question or medical symptoms.
                 </p>
               ) : voiceState === 'thinking' ? (
-                <p className="text-center text-xs text-yellow-300 animate-pulse">
-                  Analyzing triage context and routing to clinical agent...
+                <p className="text-center text-xs text-yellow-300 animate-pulse my-auto">
+                  Analyzing triage context & synthesizing complete voice response...
                 </p>
               ) : (
-                <div>
+                <div className="space-y-1.5 text-left">
                   {transcript && (
-                    <p className="text-xs text-gray-400 mb-1">
+                    <p className="text-xs text-gray-400 border-b border-white/5 pb-1">
                       <span className="font-bold text-gray-500 uppercase text-[9px]">You: </span>
                       {transcript}
                     </p>
                   )}
                   {aiResponseText && (
-                    <p className="text-xs text-cyan-200 leading-relaxed">
-                      <span className="font-bold text-cyan-400 uppercase text-[9px]">Aura AI: </span>
-                      {aiResponseText.length > 160 ? `${aiResponseText.slice(0, 160)}...` : aiResponseText}
-                    </p>
+                    <div className="text-xs text-cyan-100 leading-relaxed whitespace-pre-wrap">
+                      <span className="font-bold text-cyan-400 uppercase text-[9px] block mb-0.5">
+                        Aura AI Complete Answer:
+                      </span>
+                      {aiResponseText}
+                    </div>
                   )}
                 </div>
               )}
@@ -535,7 +625,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
                 {voiceState === 'listening' ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
               </button>
 
-              {/* Stop Speaking button if AI is active */}
+              {/* Stop Speaking button if AI is speaking */}
               {voiceState === 'speaking' && (
                 <button
                   onClick={handleStopSpeaking}
@@ -582,9 +672,9 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
             </div>
 
             {/* Compliance Footer */}
-            <div className="flex items-center gap-1.5 justify-center text-[9px] text-gray-500 relative z-10 border-t border-white/5 w-full pt-3 mt-1">
+            <div className="flex items-center gap-1.5 justify-center text-[9px] text-gray-500 relative z-10 border-t border-white/5 w-full pt-2.5 mt-1">
               <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-              <span>HIPAA Compliant &middot; Multi-Agent Healthcare Core</span>
+              <span>Complete Synchronized Voice &amp; Text &middot; HIPAA Compliant</span>
             </div>
           </motion.div>
         </div>
