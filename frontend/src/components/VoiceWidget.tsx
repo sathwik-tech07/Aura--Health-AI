@@ -15,7 +15,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { API_BASE_URL } from '../api/config';
-import { SUPPORTED_LANGUAGES, getLang } from '../i18n';
+import { SUPPORTED_LANGUAGES, VOICE_LANGUAGE_CONFIG, getLang, setLang } from '../i18n';
 
 declare global {
   interface Window {
@@ -56,7 +56,11 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
 
   // Sync language with global language
   useEffect(() => {
-    const handleGlobalLang = () => setSelectedLang(getLang());
+    const handleGlobalLang = () => {
+      const current = getLang();
+      setSelectedLang(current);
+      console.log('Voice language synced to:', current);
+    };
     window.addEventListener('auraLangChange', handleGlobalLang);
     return () => window.removeEventListener('auraLangChange', handleGlobalLang);
   }, []);
@@ -91,7 +95,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
     setTimer(0);
     setTranscript('');
     setAiResponseText(
-      'Hello! I am Aura, your clinical AI nurse. Ask any health, appointment, or clinic question and I will answer you completely.'
+      'Hello! I am Aura, your clinical AI healthcare assistant. Ask any health, timing, doctor, or clinic question and I will answer you completely.'
     );
     setErrorMessage('');
   }, [isOpen]);
@@ -173,13 +177,16 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
       return;
     }
 
+    const langConfig = VOICE_LANGUAGE_CONFIG[langCode] || VOICE_LANGUAGE_CONFIG.en;
+    const recognitionTag = langConfig.recognition || 'en-US';
+
     // Split into natural sentences so Chrome doesn't drop long answers
     const sentences = cleanText.match(/[^.!?।\n]+[.!?।\n]+/g) || [cleanText];
     speechQueueRef.current = sentences.map((s) => s.trim()).filter(Boolean);
 
     const voices = window.speechSynthesis.getVoices() || [];
     const matchedVoice = voices.find(
-      (v) => v.lang && v.lang.toLowerCase().startsWith(langCode.toLowerCase())
+      (v) => v.lang && (v.lang.toLowerCase() === recognitionTag.toLowerCase() || v.lang.toLowerCase().startsWith(langCode.toLowerCase()))
     );
 
     const speakNextSentence = () => {
@@ -197,7 +204,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
       }
 
       const utterance = new SpeechSynthesisUtterance(nextText);
-      utterance.lang = langCode;
+      utterance.lang = recognitionTag;
       if (matchedVoice) utterance.voice = matchedVoice;
       utterance.rate = 0.95;
 
@@ -228,6 +235,8 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
     setTranscript(spokenText);
     setVoiceState('thinking');
     setErrorMessage('');
+
+    console.log('Voice language sending to backend:', selectedLang);
 
     try {
       // 1. Send complete user speech to backend /voice endpoint
@@ -283,12 +292,12 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
           isProcessingRef.current = false;
         }
       } else {
-        // JSON response returned (e.g. ElevenLabs fallback)
+        // JSON response returned
         const data = await response.json();
         const fullAnswerText =
           data.response ||
           data.text ||
-          'Thank you for contacting Aura Health. Please consult a clinician.';
+          'Thank you for contacting Aura Health.';
 
         // Set the EXACT complete answer in the UI
         setAiResponseText(fullAnswerText);
@@ -342,20 +351,12 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
 
-      recognition.lang =
-        selectedLang === 'hi'
-          ? 'hi-IN'
-          : selectedLang === 'te'
-          ? 'te-IN'
-          : selectedLang === 'ta'
-          ? 'ta-IN'
-          : selectedLang === 'bn'
-          ? 'bn-IN'
-          : selectedLang === 'mr'
-          ? 'mr-IN'
-          : selectedLang;
+      const langConfig = VOICE_LANGUAGE_CONFIG[selectedLang] || VOICE_LANGUAGE_CONFIG.en;
+      recognition.lang = langConfig.recognition;
       recognition.interimResults = false;
       recognition.maxAlternatives = 1;
+
+      console.log(`[Speech Recognition] Started with language: ${selectedLang} (${recognition.lang})`);
 
       recognition.onstart = () => {
         setVoiceState('listening');
@@ -396,6 +397,16 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
       console.error('Failed to start speech recognition:', err);
       setVoiceState('error');
       setErrorMessage('Failed to initialize microphone. Please check browser permissions.');
+    }
+  };
+
+  const handleLanguageChange = (newLang: string) => {
+    console.log('User changed voice language to:', newLang);
+    setSelectedLang(newLang);
+    setLang(newLang);
+    if (voiceState === 'listening' && recognitionRef.current) {
+      recognitionRef.current.abort();
+      setVoiceState('idle');
     }
   };
 
@@ -468,12 +479,12 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
             <div className="w-full flex justify-between items-center relative z-10">
               <span className="text-[10px] uppercase font-bold tracking-widest text-cyan-400 flex items-center gap-1.5">
                 <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                Aura Voice AI &middot; Complete Speech Core
+                Aura Voice AI &middot; Multilingual Core
               </span>
               <div className="flex items-center gap-2">
                 <select
                   value={selectedLang}
-                  onChange={(e) => setSelectedLang(e.target.value)}
+                  onChange={(e) => handleLanguageChange(e.target.value)}
                   disabled={voiceState === 'listening' || voiceState === 'thinking'}
                   className="bg-dark-900 text-gray-200 text-xs rounded-lg px-2 py-1 border border-white/10 focus:outline-none cursor-pointer disabled:opacity-50"
                 >
@@ -566,7 +577,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
                   : 'Aura Health Complete Voice Assistant'}
               </h3>
               <p className="text-[11px] font-semibold uppercase tracking-widest text-cyan-400">
-                {formatTime(timer)} &middot; {selectedLang.toUpperCase()}
+                {formatTime(timer)} &middot; {VOICE_LANGUAGE_CONFIG[selectedLang]?.native || selectedLang.toUpperCase()} ({VOICE_LANGUAGE_CONFIG[selectedLang]?.recognition || selectedLang})
               </p>
             </div>
 
@@ -582,11 +593,11 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
                 </div>
               ) : voiceState === 'listening' ? (
                 <p className="text-center text-xs text-gray-400 italic my-auto">
-                  Listening... Speak your complete question or medical symptoms.
+                  Listening... Speak your question in {VOICE_LANGUAGE_CONFIG[selectedLang]?.native || 'your selected language'}.
                 </p>
               ) : voiceState === 'thinking' ? (
                 <p className="text-center text-xs text-yellow-300 animate-pulse my-auto">
-                  Analyzing triage context & synthesizing complete voice response...
+                  Analyzing clinic knowledge & synthesizing complete response in {VOICE_LANGUAGE_CONFIG[selectedLang]?.native}...
                 </p>
               ) : (
                 <div className="space-y-1.5 text-left">
@@ -674,7 +685,7 @@ export const VoiceWidget: React.FC<VoiceWidgetProps> = ({
             {/* Compliance Footer */}
             <div className="flex items-center gap-1.5 justify-center text-[9px] text-gray-500 relative z-10 border-t border-white/5 w-full pt-2.5 mt-1">
               <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Complete Synchronized Voice &amp; Text &middot; HIPAA Compliant</span>
+              <span>Complete Synchronized Voice &amp; Text &middot; 18 Languages Supported</span>
             </div>
           </motion.div>
         </div>

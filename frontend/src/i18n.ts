@@ -800,26 +800,37 @@ export const I18N: Record<string, TranslationDictionary> = {
   },
 };
 
-export const SUPPORTED_LANGUAGES = [
-  { code: 'en', name: 'English', native: 'English', flag: '🇬🇧' },
-  { code: 'hi', name: 'Hindi', native: 'हिन्दी', flag: '🇮🇳' },
-  { code: 'te', name: 'Telugu', native: 'తెలుగు', flag: '🇮🇳' },
-  { code: 'es', name: 'Spanish', native: 'Español', flag: '🇪🇸' },
-  { code: 'fr', name: 'French', native: 'Français', flag: '🇫🇷' },
-  { code: 'de', name: 'German', native: 'Deutsch', flag: '🇩🇪' },
-  { code: 'it', name: 'Italian', native: 'Italiano', flag: '🇮🇹' },
-  { code: 'pt', name: 'Portuguese', native: 'Português', flag: '🇵🇹' },
-  { code: 'ru', name: 'Russian', native: 'Русский', flag: '🇷🇺' },
-  { code: 'zh', name: 'Chinese', native: '中文', flag: '🇨🇳' },
-  { code: 'ja', name: 'Japanese', native: '日本語', flag: '🇯🇵' },
-  { code: 'ko', name: 'Korean', native: '한국어', flag: '🇰🇷' },
-  { code: 'ar', name: 'Arabic', native: 'العربية', flag: '🇸🇦' },
-  { code: 'bn', name: 'Bengali', native: 'বাংলা', flag: '🇧🇩' },
-  { code: 'ta', name: 'Tamil', native: 'தமிழ்', flag: '🇮🇳' },
-  { code: 'mr', name: 'Marathi', native: 'मराठी', flag: '🇮🇳' },
-  { code: 'ur', name: 'Urdu', native: 'اردو', flag: '🇵🇰' },
-  { code: 'vi', name: 'Vietnamese', native: 'Tiếng Việt', flag: '🇻🇳' },
-];
+export const VOICE_LANGUAGE_CONFIG: Record<
+  string,
+  { name: string; native: string; recognition: string; flag: string }
+> = {
+  en: { name: 'English', native: 'English', recognition: 'en-US', flag: '🇬🇧' },
+  hi: { name: 'Hindi', native: 'हिन्दी', recognition: 'hi-IN', flag: '🇮🇳' },
+  te: { name: 'Telugu', native: 'తెలుగు', recognition: 'te-IN', flag: '🇮🇳' },
+  es: { name: 'Spanish', native: 'Español', recognition: 'es-ES', flag: '🇪🇸' },
+  fr: { name: 'French', native: 'Français', recognition: 'fr-FR', flag: '🇫🇷' },
+  de: { name: 'German', native: 'Deutsch', recognition: 'de-DE', flag: '🇩🇪' },
+  it: { name: 'Italian', native: 'Italiano', recognition: 'it-IT', flag: '🇮🇹' },
+  pt: { name: 'Portuguese', native: 'Português', recognition: 'pt-PT', flag: '🇵🇹' },
+  ru: { name: 'Russian', native: 'Русский', recognition: 'ru-RU', flag: '🇷🇺' },
+  zh: { name: 'Chinese', native: '中文', recognition: 'zh-CN', flag: '🇨🇳' },
+  ja: { name: 'Japanese', native: '日本語', recognition: 'ja-JP', flag: '🇯🇵' },
+  ko: { name: 'Korean', native: '한국어', recognition: 'ko-KR', flag: '🇰🇷' },
+  ar: { name: 'Arabic', native: 'العربية', recognition: 'ar-SA', flag: '🇸🇦' },
+  bn: { name: 'Bengali', native: 'বাংলা', recognition: 'bn-IN', flag: '🇧🇩' },
+  ta: { name: 'Tamil', native: 'தமிழ்', recognition: 'ta-IN', flag: '🇮🇳' },
+  mr: { name: 'Marathi', native: 'मराठी', recognition: 'mr-IN', flag: '🇮🇳' },
+  ur: { name: 'Urdu', native: 'اردو', recognition: 'ur-PK', flag: '🇵🇰' },
+  vi: { name: 'Vietnamese', native: 'Tiếng Việt', recognition: 'vi-VN', flag: '🇻🇳' },
+};
+
+export const SUPPORTED_LANGUAGES = Object.entries(VOICE_LANGUAGE_CONFIG).map(([code, config]) => ({
+  code,
+  name: config.name,
+  native: config.native,
+  flag: config.flag,
+  recognition: config.recognition,
+}));
 
 export type LangKey = keyof typeof I18N;
 

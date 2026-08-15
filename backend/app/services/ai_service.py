@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 from dotenv import load_dotenv
 from google import genai
 
@@ -10,7 +10,8 @@ from app.schemas import ConversationCreate
 from app.prompts.system_prompt import SYSTEM_PROMPT
 from app.services.router_service import detect_intents, detect_agent
 from app.services.summary_service import generate_summary
-from app.knowledge.clinic_knowledge import get_clinic_knowledge
+from app.knowledge.clinic_knowledge import get_clinic_knowledge, CLINIC_HOURS, CLINIC_PHONE, CLINIC_EMAIL
+from app.knowledge.language_config import VOICE_LANGUAGE_CONFIG, get_language_info
 from app.agents.appointment_agent import appointment_agent
 from app.agents.symptom_agent import symptom_agent
 from app.agents.emergency_agent import emergency_agent
@@ -31,28 +32,6 @@ MODELS = [
     "gemini-1.5-flash",
     "gemini-1.5-pro",
 ]
-
-# 18-Language mapping dictionary
-LANGUAGE_MAP = {
-    "en": "English",
-    "hi": "Hindi",
-    "te": "Telugu",
-    "es": "Spanish",
-    "fr": "French",
-    "de": "German",
-    "it": "Italian",
-    "pt": "Portuguese",
-    "ru": "Russian",
-    "zh": "Simplified Chinese",
-    "ja": "Japanese",
-    "ko": "Korean",
-    "ar": "Arabic",
-    "bn": "Bengali",
-    "ta": "Tamil",
-    "mr": "Marathi",
-    "ur": "Urdu",
-    "vi": "Vietnamese",
-}
 
 
 def get_genai_client():
@@ -88,34 +67,110 @@ def generate_with_fallback(prompt: str) -> str:
     raise Exception(f"All Gemini AI models failed: {last_error}")
 
 
-def get_emergency_fallback(user_message: str, language: str) -> str:
-    return (
-        f"🚨 **EMERGENCY MEDICAL NOTICE**\n\n"
-        f"Based on your inquiry ('{user_message}'), your situation may involve an acute medical emergency. "
-        f"Please do NOT wait for AI text responses. Call emergency services (911 in the US / 112 in India/EU) or proceed to the nearest Emergency Department immediately."
-    )
+def get_local_knowledge_response(user_message: str, detected_intents: List[str], lang_code: str) -> str:
+    """
+    Multilingual offline knowledge response generator ensuring accurate answers
+    even when network AI endpoints are unavailable.
+    """
+    base_lang = (lang_code or "en").split("-")[0].lower()
+    msg_lower = (user_message or "").lower()
+
+    # 1. Hindi Knowledge Response
+    if base_lang == "hi":
+        parts = []
+        is_timing = any(w in msg_lower for w in ["टाइमिंग", "समय", "खुलता", "timing", "hours", "time"])
+        is_services = any(w in msg_lower for w in ["सेवाएं", "सेवा", "सुविधा", "services", "provide"])
+        is_booking = "appointment" in detected_intents or any(w in msg_lower for w in ["अपॉइंटमेंट", "बुक", "booking"])
+        is_emergency = "emergency" in detected_intents or any(w in msg_lower for w in ["इमरजेंसी", "आपातकाल", "emergency"])
+        is_billing = "billing" in detected_intents or any(w in msg_lower for w in ["फीस", "शुल्क", "खर्च", "fee", "cost"])
+
+        if is_timing or ("faq" in detected_intents and not is_services and not is_booking and not is_emergency):
+            parts.append("ऑरा हेल्थ के क्लिनिक के समय सोमवार से शनिवार, सुबह 9:00 बजे से शाम 6:00 बजे तक हैं।")
+        if is_services:
+            parts.append("ऑरा हेल्थ एआई निम्नलिखित सेवाएं प्रदान करता है:\n- सामान्य परामर्श (General Consultation)\n- लक्षण मूल्यांकन व ट्राइएज (Symptom Assessment)\n- डॉक्टर अपॉइंटमेंट बुकिंग (Appointment Booking)\n- बिलिंग व बीमा सहायता (Billing Assistance)\n- डिजिटल स्वास्थ्य सहायता (Health FAQs)")
+        if is_booking:
+            parts.append("आप ऑरा हेल्थ एआई के माध्यम से डॉक्टर अपॉइंटमेंट आसानी से बुक, पुनर्निर्धारित (reschedule) या रद्द कर सकते हैं। आप वेबसाइट पर 'Book Appointment' बटन पर क्लिक करके या वॉयस असिस्टेंट द्वारा अपना स्लॉट चुन सकते हैं।")
+        if is_billing:
+            parts.append("सामान्य परामर्श शुल्क ₹500 है। विशेषज्ञ डॉक्टरों की फीस ₹600 से ₹1100 के बीच है। हम सभी प्रमुख बीमा योजनाएं स्वीकार करते हैं।")
+        if is_emergency:
+            parts.append("चिकित्सा आपातकाल की स्थिति में, कृपया तुरंत 112 या 911 पर कॉल करें या नजदीकी अस्पताल के आपातकालीन विभाग में जाएं।")
+
+        if parts:
+            return "\n\n".join(parts)
+        return "ऑरा हेल्थ क्लिनिक सोमवार से शनिवार सुबह 9:00 बजे से शाम 6:00 बजे तक खुला है। अधिक जानकारी या अपॉइंटमेंट के लिए +91-9876543210 पर संपर्क करें।"
+
+    # 2. Telugu Knowledge Response
+    elif base_lang == "te":
+        parts = []
+        is_timing = any(w in msg_lower for w in ["టైమింగ్స్", "సమయం", "సమయాలు", "timing", "hours", "time"])
+        is_services = any(w in msg_lower for w in ["సేవలు", "services", "provide"])
+        is_booking = "appointment" in detected_intents or any(w in msg_lower for w in ["అపాయింట్‌మెంట్", "బుక్", "booking"])
+        is_emergency = "emergency" in detected_intents or any(w in msg_lower for w in ["అత్యవసరం", "ఎమర్జెన్సీ", "emergency"])
+        is_billing = "billing" in detected_intents or any(w in msg_lower for w in ["ఫీజు", "ఖర్చు", "fee", "cost"])
+
+        if is_timing or ("faq" in detected_intents and not is_services and not is_booking and not is_emergency):
+            parts.append("ఆరా హెల్త్ క్లినిక్ పని వేళలు సోమవారం నుండి శనివారం వరకు, ఉదయం 9:00 గంటల నుండి సాయంత్రం 6:00 గంటల వరకు.")
+        if is_services:
+            parts.append("ఆరా హెల్త్ AI అందించే సేవలు:\n- సాధారణ వైద్య సంప్రదింపులు (General Consultation)\n- లక్షణాల అంచనా (Symptom Assessment)\n- డాక్టర్ అపాయింట్‌మెంట్ బుకింగ్ (Appointment Booking)\n- బిల్లింగ్ మరియు ఇన్సూరెన్స్ సహాయం (Billing Assistance)\n- ఆరోగ్య సమాచారం (Health FAQs)")
+        if is_booking:
+            parts.append("మీరు ఆరా హెల్త్ AI ద్వారా ఆన్‌లైన్‌లో లేదా వాయిస్ అసిస్టెంట్ ద్వారా డాక్టర్ అపాయింట్‌మెంట్‌ను సులభంగా బుక్ చేయవచ్చు, సమయం మార్చవచ్చు లేదా రద్దు చేయవచ్చు.")
+        if is_billing:
+            parts.append("సాధారణ కన్సల్టేషన్ ఫీజు ₹500. స్పెషలిస్ట్ వైద్యుల ఫీజు ₹600 నుండి ₹1100 వరకు ఉంటుంది.")
+        if is_emergency:
+            parts.append("వైద్య అత్యవసర పరిస్థితుల్లో దయచేసి వెంటనే 112 లేదా 911 కు కాల్ చేయండి లేదా సమీపంలోని ఆసుపత్రికి వెళ్లండి.")
+
+        if parts:
+            return "\n\n".join(parts)
+        return "ఆరా హెల్త్ క్లినిక్ వేళలు సోమవారం నుండి శనివారం వరకు ఉదయం 9:00 నుండి సాయంత్రం 6:00 వరకు. వివరాలకు +91-9876543210 కు కాల్ చేయండి."
+
+    # 3. Default English Knowledge Response
+    parts = []
+    is_timing = any(w in msg_lower for w in ["timing", "hours", "time", "open", "when"])
+    is_services = any(w in msg_lower for w in ["services", "provide", "facilities", "what do you do"])
+    is_booking = "appointment" in detected_intents or any(w in msg_lower for w in ["appointment", "book", "schedule", "booking"])
+    is_emergency = "emergency" in detected_intents or any(w in msg_lower for w in ["emergency", "911", "112", "urgent"])
+    is_billing = "billing" in detected_intents or any(w in msg_lower for w in ["fee", "cost", "price", "insurance", "charge"])
+
+    if is_timing or ("faq" in detected_intents and not is_services and not is_booking and not is_emergency):
+        parts.append("Aura Health clinic hours are Monday to Saturday, from 9:00 AM to 6:00 PM.")
+    if is_services:
+        parts.append("Aura Health AI provides the following clinical services:\n- General Consultation\n- 24/7 AI Clinical Symptom Assessment\n- Doctor Appointment Booking, Rescheduling & Cancellation\n- Billing & Health Insurance Assistance\n- Health FAQs & Hospital Guidance")
+    if is_booking:
+        parts.append("You can book, reschedule, or cancel doctor appointments directly through Aura Health AI online or through the Voice Assistant. Simply choose your specialist, date, and preferred time slot.")
+    if is_billing:
+        parts.append("General consultation fee is ₹500 ($25). Specialist consultation fees range from ₹600 to ₹1100. We accept all major health insurance plans.")
+    if is_emergency:
+        parts.append("For medical emergencies, immediately contact your nearest hospital or call emergency services (911 / 112).")
+
+    if parts:
+        return "\n\n".join(parts)
+
+    return f"Aura Health clinic hours are Monday to Saturday, 9:00 AM to 6:00 PM. Contact us at {CLINIC_PHONE} or {CLINIC_EMAIL}."
 
 
 def generate_response(session_id: str, user_message: str, language: str = "en") -> str:
     try:
-        # Standardize language key (support locale strings like en-US, te-IN, hi-IN)
         base_lang = (language or "en").split("-")[0].lower()
-        selected_language = LANGUAGE_MAP.get(base_lang, LANGUAGE_MAP.get(language, "English"))
+        lang_info = get_language_info(base_lang)
+        selected_language_name = lang_info["name"]
+        native_language_name = lang_info["native"]
+
+        safe_msg = user_message.encode('ascii', 'replace').decode('ascii')
+        print(f"[AI Service] Processing session={session_id}, language={base_lang} ({selected_language_name}), message='{safe_msg}'")
+
+        # Multi-intent detection
+        detected_intents: List[str] = detect_intents(user_message)
+        primary_agent = detected_intents[0] if detected_intents else "faq"
 
         # Retrieve verified clinic knowledge base
         knowledge = get_clinic_knowledge()
 
-        # Retrieve recent conversation memory (keep last 8 interactions for efficient context)
-        history = get_history(session_id)[-8:]
+        # Retrieve recent conversation memory
+        history = get_history(session_id)[-6:]
         history_text = "\n".join(f"{item['role']}: {item['message']}" for item in history)
 
-        # Multi-intent detection: identify ALL relevant user intents
-        detected_intents: List[str] = detect_intents(user_message)
-        primary_agent = detected_intents[0] if detected_intents else "faq"
-
-        # Build combined agent guidance for each detected intent
+        # Build combined agent guidance
         agent_directives = []
-
         if "emergency" in detected_intents:
             agent_directives.append(f"--- EMERGENCY DIRECTIVE ---\n{emergency_agent()}")
         if "symptom" in detected_intents:
@@ -135,22 +190,24 @@ def generate_response(session_id: str, user_message: str, language: str = "en") 
 
         combined_agent_prompt = "\n\n".join(agent_directives)
 
-        # Multi-topic requirement instruction
         multi_intent_instruction = f"""
-CRITICAL MULTI-INTENT REQUIREMENT:
-The user has asked a question containing MULTIPLE distinct topics: {', '.join(detected_intents).upper()}.
-You MUST address EVERY SINGLE ONE of these topics clearly and completely in your response.
-Do NOT ignore any part of the user's question.
+CRITICAL MULTI-INTENT & TOPIC REQUIREMENT:
+The user has asked about the following topic(s): {', '.join(detected_intents).upper()}.
+You MUST address EVERY SINGLE ONE of these topics clearly and completely in your response using the verified Clinic Information below.
+
+CLINIC INFORMATION:
+{knowledge}
 
 Answer Structure Guidelines:
-1. If symptoms/emergencies are mentioned: Provide safe symptom assessment or emergency guidance first.
-2. If doctors/departments are asked: State the recommended department/physician with a 'Reason:' section.
-3. If fees/billing/insurance are asked: Provide exact consultation fees and insurance details from Clinic Information.
-4. If appointments/booking are asked: Explain how to schedule or offer booking assistance.
-5. If clinic services/hours/location are asked: Summarize the hospital facilities, working hours, and address.
+1. If clinic hours/timing are asked: State Monday - Saturday, 9:00 AM - 6:00 PM clearly.
+2. If services are asked: List General Consultation, Symptom Assessment, Appointment Booking, Billing Assistance, and Health FAQs.
+3. If booking/appointments are asked: Explain that patients can book, reschedule, or cancel appointments through Aura Health AI.
+4. If symptoms are reported: Provide safe clinical triage guidance and recommend the appropriate department with a 'Reason:' section.
+5. If fees/insurance are asked: Provide consultation fees and accepted insurance from Clinic Information.
+6. If emergency is mentioned: Provide immediate emergency advice (Call 112 / 911).
 """
 
-        # Build prompt
+        # Strict language prompt
         prompt = f"""
 {SYSTEM_PROMPT}
 
@@ -159,12 +216,10 @@ Answer Structure Guidelines:
 SPECIALIZED AGENT DIRECTIVES:
 {combined_agent_prompt}
 
-OUTPUT LANGUAGE INSTRUCTION:
-Reply fluently, naturally, and completely in {selected_language}.
-If the user's message is in {selected_language}, reply in {selected_language}.
-
-CLINIC INFORMATION (Use as sole verified source):
-{knowledge}
+CRITICAL LANGUAGE INSTRUCTION:
+- You MUST generate your ENTIRE response in {selected_language_name} ({native_language_name}).
+- Do NOT reply in English unless the requested language is English.
+- Use natural, accurate, and fluent {selected_language_name} vocabulary and phrasing.
 
 RECENT CONVERSATION CONTEXT:
 {history_text if history_text else "No previous conversation in this session."}
@@ -172,33 +227,23 @@ RECENT CONVERSATION CONTEXT:
 PATIENT INQUIRY:
 {user_message}
 
-CRITICAL RULES:
-- Address ALL parts of the patient's inquiry in ONE coherent, structured response.
-- When recommending a department or doctor, provide a structured 'Reason:' explanation.
-- Never diagnose diseases with certainty.
-- Answer completely in {selected_language}.
+Answer the patient's inquiry completely, accurately, and fluently in {selected_language_name}:
 """
 
         try:
             response_text = generate_with_fallback(prompt)
         except Exception as ai_err:
-            print(f"Gemini generation error: {ai_err}")
-            if "emergency" in detected_intents:
-                response_text = get_emergency_fallback(user_message, base_lang)
-            else:
-                response_text = (
-                    f"Thank you for contacting AuraHealth AI regarding your inquiry. "
-                    f"Our clinical team and doctors across all departments are available 24/7. "
-                    f"Please consult a physician or visit our clinic for a full evaluation."
-                )
+            print(f"Gemini generation fallback triggered: {ai_err}")
+            # Use intelligent multilingual local knowledge fallback
+            response_text = get_local_knowledge_response(user_message, detected_intents, base_lang)
 
-        # Generate structured triage summary if symptom or emergency is present
+        # Generate structured triage summary ONLY if real symptoms are present
         summary = ""
-        if any(intent in ["symptom", "emergency", "appointment"] for intent in detected_intents):
+        if "symptom" in detected_intents or "emergency" in detected_intents:
             summary = generate_summary(user_message, primary_agent, base_lang)
 
         final_response = response_text
-        if summary and ("symptom" in detected_intents or "emergency" in detected_intents):
+        if summary:
             final_response = f"{response_text}\n\n{summary}"
 
         # Update in-memory session cache
@@ -226,7 +271,4 @@ CRITICAL RULES:
 
     except Exception as e:
         print(f"generate_response top-level error: {e}")
-        return (
-            "We are currently experiencing high clinical request volume. "
-            "If you are experiencing severe symptoms, please contact emergency services immediately or visit your nearest clinic."
-        )
+        return get_local_knowledge_response(user_message, ["faq"], language)

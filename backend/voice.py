@@ -3,35 +3,11 @@ import re
 from typing import Optional, List
 import requests
 from dotenv import load_dotenv
+from app.knowledge.language_config import VOICE_LANGUAGE_CONFIG, get_language_info
 
 load_dotenv()
 
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-
-# -----------------------------
-# ElevenLabs Multilingual Voice IDs
-# -----------------------------
-VOICE_IDS = {
-    "en": "21m00Tcm4TlvDq8ikWAM",   # Rachel (English)
-    "hi": "WBmxqeNTu1MpgKdx1VAn",   # Hindi Voice
-    "te": "WBmxqeNTu1MpgKdx1VAn",   # Telugu Voice
-    "es": "ErXwobaYiN019PkySvjV",   # Antoni (Multilingual)
-    "fr": "ErXwobaYiN019PkySvjV",   # French
-    "de": "ErXwobaYiN019PkySvjV",   # German
-    "it": "ErXwobaYiN019PkySvjV",   # Italian
-    "pt": "ErXwobaYiN019PkySvjV",   # Portuguese
-    "ru": "ErXwobaYiN019PkySvjV",   # Russian
-    "zh": "ErXwobaYiN019PkySvjV",   # Chinese
-    "ja": "ErXwobaYiN019PkySvjV",   # Japanese
-    "ko": "ErXwobaYiN019PkySvjV",   # Korean
-    "ar": "ErXwobaYiN019PkySvjV",   # Arabic
-    "bn": "WBmxqeNTu1MpgKdx1VAn",   # Bengali
-    "ta": "WBmxqeNTu1MpgKdx1VAn",   # Tamil
-    "mr": "WBmxqeNTu1MpgKdx1VAn",   # Marathi
-    "ur": "WBmxqeNTu1MpgKdx1VAn",   # Urdu
-    "vi": "ErXwobaYiN019PkySvjV",   # Vietnamese
-    "default": "21m00Tcm4TlvDq8ikWAM",
-}
 
 
 def clean_text_for_speech(text: str) -> str:
@@ -144,7 +120,10 @@ def text_to_speech(text: str, language: str = "en") -> Optional[bytes]:
         return None
 
     base_lang = (language or "en").split("-")[0].lower()
-    voice_id = VOICE_IDS.get(base_lang, VOICE_IDS["default"])
+    lang_info = get_language_info(base_lang)
+    voice_id = lang_info["voice_id"]
+
+    print(f"[ElevenLabs TTS] Synthesizing speech for language={base_lang}, voice_id={voice_id}, text_len={len(clean_text)}")
 
     chunks = chunk_text(clean_text, max_chars=3500)
     audio_segments = []
@@ -153,12 +132,9 @@ def text_to_speech(text: str, language: str = "en") -> Optional[bytes]:
         audio = synthesize_single_chunk(chunk, voice_id)
         if audio:
             audio_segments.append(audio)
-        else:
-            # If any chunk fails, return whatever we have or None
-            pass
 
     if not audio_segments:
         return None
 
-    # Concatenate MPEG audio chunks sequentially (MP3 frames concatenate cleanly)
+    # Concatenate MPEG audio chunks sequentially
     return b"".join(audio_segments)

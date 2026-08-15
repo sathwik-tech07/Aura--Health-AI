@@ -78,6 +78,7 @@ def root():
 
 @app.post("/chat")
 def chat(request: ChatRequest):
+    print(f"[FastAPI /chat] Received request: language={request.language}, session={request.session_id}")
     response = generate_response(
         request.session_id,
         request.message,
@@ -99,6 +100,8 @@ def dashboard(request: ChatRequest):
 
 @app.post("/voice")
 def voice(request: ChatRequest):
+    print(f"[FastAPI /voice] Received voice request: language={request.language}, session={request.session_id}")
+
     # 1. Generate COMPLETE clinical AI response
     response = generate_response(
         request.session_id,
@@ -112,7 +115,7 @@ def voice(request: ChatRequest):
         request.language,
     )
 
-    # Base64 encode the complete response text (preserves 100% of Telugu, Hindi, English, etc.)
+    # Base64 encode the complete response text
     response_b64 = base64.b64encode(response.encode("utf-8")).decode("ascii")
 
     if audio is None:
