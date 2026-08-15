@@ -4,9 +4,11 @@ import { Header, type PageKey } from './components/Header';
 import { Hero } from './components/Hero';
 import { Features } from './components/Features';
 import { VoiceDemo } from './components/VoiceDemo';
+import { HowItWorks } from './components/HowItWorks';
 import { Stats } from './components/Stats';
 import { Testimonials } from './components/Testimonials';
 import { CTA } from './components/CTA';
+import { Footer } from './components/Footer';
 import { ChatWidget } from './components/ChatWidget';
 import { VoiceWidget } from './components/VoiceWidget';
 import { PatientDashboard } from './components/PatientDashboard';
@@ -29,7 +31,7 @@ function App() {
   const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
   const [recentAppointment, setRecentAppointment] = useState<any | null>(null);
 
-  // User authentication token and role state
+  // Authentication token and user role state
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('aura_token');
@@ -64,7 +66,7 @@ function App() {
     }
   });
 
-  // Scroll to top on page change
+  // Scroll to top on navigation change
   useEffect(() => {
     window.scrollTo({
       top: 0,
@@ -111,14 +113,15 @@ function App() {
     setPage('none');
   };
 
-  const isLanding = page === 'none';
+  const isAuthenticated = Boolean(token);
   const isEmployerRole = user?.role === 'employer' || user?.role === 'admin';
+  const isLanding = !isAuthenticated || page === 'none';
 
   return (
     <div className="relative min-h-screen bg-dark-950 text-gray-100 overflow-x-hidden">
       <ParticlesBackground />
 
-      {/* Top Header Navigation with Role Awareness */}
+      {/* Top Header Navigation (Role Aware) */}
       <Header
         currentPage={page}
         token={token}
@@ -126,60 +129,63 @@ function App() {
         onLogin={() => setLoginOpen(true)}
         onLogout={handleLogout}
         onNavigate={handleNavigate}
-        onStartChat={() => setIsChatOpen(true)}
-        onStartVoice={() => setIsVoiceOpen(true)}
+        onStartChat={() => {
+          if (!isAuthenticated) setLoginOpen(true);
+          else setIsChatOpen(true);
+        }}
+        onStartVoice={() => {
+          if (!isAuthenticated) setLoginOpen(true);
+          else setIsVoiceOpen(true);
+        }}
       />
 
-      {/* Public Landing Page View */}
+      {/* 1. PUBLIC MARKETING LANDING PAGE VIEW (Logged Out or Landing) */}
       {isLanding && (
         <main>
           <Hero
-            onStartChat={() => setIsChatOpen(true)}
-            onStartVoice={() => setIsVoiceOpen(true)}
+            onGetStarted={() => setLoginOpen(true)}
+            onExploreFeatures={() => {
+              const el = document.getElementById('features');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
           />
 
           <Features />
 
           <VoiceDemo />
 
+          <HowItWorks />
+
           <Stats />
 
           <Testimonials />
 
-          <CTA onStartChat={() => setIsChatOpen(true)} />
+          <CTA onGetStarted={() => setLoginOpen(true)} />
+
+          <Footer onLoginClick={() => setLoginOpen(true)} />
         </main>
       )}
 
-      {/* Patient Health Dashboard View */}
-      {page === 'dashboard' && (
-        <main>
-          {token ? (
-            <PatientDashboard
-              onStartChat={() => setIsChatOpen(true)}
-              onStartVoice={() => setIsVoiceOpen(true)}
-              onOpenBookModal={(doctorId) => {
-                setSelectedDoctor(doctorId || null);
-                setIsBookOpen(true);
-              }}
-              onNavigate={(p) => handleNavigate(p)}
-              sessionId={sessionId}
-            />
-          ) : (
-            <div className="pt-32 text-center text-gray-400">
-              <p>Authentication required. Please sign in.</p>
-            </div>
-          )}
+      {/* 2. AUTHENTICATED PATIENT PORTAL DASHBOARD */}
+      {isAuthenticated && page === 'dashboard' && (
+        <main className="min-h-screen">
+          <PatientDashboard
+            onStartChat={() => setIsChatOpen(true)}
+            onStartVoice={() => setIsVoiceOpen(true)}
+            onOpenBookModal={(doctorId) => {
+              setSelectedDoctor(doctorId || null);
+              setIsBookOpen(true);
+            }}
+            onNavigate={(p) => handleNavigate(p)}
+            sessionId={sessionId}
+          />
         </main>
       )}
 
-      {/* Employer & Clinic Administration Portal */}
-      {page === 'employer' && (
-        <main>
-          {!token ? (
-            <div className="pt-32 text-center text-gray-400">
-              <p>Authentication required. Please sign in with an employer account.</p>
-            </div>
-          ) : isEmployerRole ? (
+      {/* 3. AUTHENTICATED EMPLOYER & CLINIC ADMINISTRATION PORTAL */}
+      {isAuthenticated && page === 'employer' && (
+        <main className="min-h-screen">
+          {isEmployerRole ? (
             <EmployerDashboard onNavigate={(p) => handleNavigate(p)} />
           ) : (
             <AccessDenied
@@ -190,12 +196,12 @@ function App() {
         </main>
       )}
 
-      {/* Appointment History Page */}
-      {page === 'appointments' && (
-        <main>
+      {/* 4. PATIENT APPOINTMENTS VIEW */}
+      {isAuthenticated && page === 'appointments' && (
+        <main className="min-h-screen">
           <AppointmentHistory
             onBack={() => {
-              setPage('none');
+              setPage(isEmployerRole ? 'employer' : 'dashboard');
               setRecentAppointment(null);
             }}
             newAppointment={recentAppointment}
@@ -207,22 +213,22 @@ function App() {
         </main>
       )}
 
-      {/* Conversation History Page */}
-      {page === 'conversations' && (
-        <main>
+      {/* 5. PATIENT CONVERSATION & TRIAGE HISTORY */}
+      {isAuthenticated && page === 'conversations' && (
+        <main className="min-h-screen">
           <ConversationHistory
-            onBack={() => setPage('none')}
+            onBack={() => setPage(isEmployerRole ? 'employer' : 'dashboard')}
             sessionId={sessionId}
             onStartNewChat={() => setIsChatOpen(true)}
           />
         </main>
       )}
 
-      {/* Doctor Directory Page */}
-      {page === 'doctors' && (
-        <main>
+      {/* 6. SPECIALIST DOCTORS DIRECTORY */}
+      {isAuthenticated && page === 'doctors' && (
+        <main className="min-h-screen">
           <DoctorDirectory
-            onBack={() => setPage('none')}
+            onBack={() => setPage(isEmployerRole ? 'employer' : 'dashboard')}
             onBook={(doctorId: string) => {
               setSelectedDoctor(doctorId || null);
               setIsBookOpen(true);
@@ -231,7 +237,7 @@ function App() {
         </main>
       )}
 
-      {/* Book Appointment Modal */}
+      {/* Book Appointment Modal (Accessible in Portal) */}
       <BookAppointmentModal
         isOpen={isBookOpen}
         onClose={() => setIsBookOpen(false)}
@@ -263,8 +269,8 @@ function App() {
         sessionId={sessionId}
       />
 
-      {/* Floating Session Badge */}
-      <SessionBadge sessionId={sessionId} />
+      {/* Floating Session Badge (Only in Authenticated Portal) */}
+      {isAuthenticated && <SessionBadge sessionId={sessionId} />}
 
       {/* Floating Language Selector */}
       <LanguageSelector variant="floating" />

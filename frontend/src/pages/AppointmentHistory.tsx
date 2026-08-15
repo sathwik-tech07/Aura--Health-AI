@@ -60,7 +60,13 @@ const AppointmentHistory: React.FC<Props> = ({ onBack, newAppointment = null, on
     setLoading(true);
     setError('');
     try {
-      const res = await apiClient.get('/appointments');
+      // First attempt patient self-appointment endpoint, fallback to all-appointments for employer
+      let res;
+      try {
+        res = await apiClient.get('/appointments/my');
+      } catch (e) {
+        res = await apiClient.get('/appointments');
+      }
       setAppointments(res.data || []);
     } catch (err: any) {
       console.error(err);

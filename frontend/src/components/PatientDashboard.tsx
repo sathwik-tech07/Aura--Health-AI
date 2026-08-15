@@ -38,7 +38,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
     const loadDashboardData = async () => {
       try {
         const [apptsRes, docsRes] = await Promise.allSettled([
-          apiClient.get('/appointments'),
+          apiClient.get('/appointments/my'),
           apiClient.get('/doctors'),
         ]);
 
