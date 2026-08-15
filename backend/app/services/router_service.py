@@ -1,20 +1,24 @@
 """
-AuraHealth AI - Specialized Agent Intent Router V2
-Directs patient inquiries accurately across 5 specialized healthcare agents:
-1. Emergency Agent
-2. Billing & Insurance Agent
-3. Appointment Agent
-4. Symptom Triage Agent
-5. FAQ & Clinic Information Agent
+AuraHealth AI - Multi-Intent Agent Router V2
+Accurately identifies ALL intents in a single user message (e.g. symptom + doctor + billing + appointment + emergency + faq).
 """
 
-def detect_agent(user_message: str) -> str:
+from typing import List
+
+
+def detect_intents(user_message: str) -> List[str]:
+    """
+    Analyzes the user's message and returns ALL matching healthcare intents.
+    Supported intents: 'emergency', 'symptom', 'billing', 'appointment', 'doctor', 'faq', 'general'
+    """
     message = (user_message or "").lower().strip()
 
     if not message:
-        return "faq"
+        return ["faq"]
 
-    # 1. Emergency Keywords (Highest Priority)
+    intents: List[str] = []
+
+    # 1. Emergency Intent (Highest Priority)
     emergency_keywords = [
         "chest pain",
         "heart attack",
@@ -41,62 +45,12 @@ def detect_agent(user_message: str) -> str:
         "112",
         "ambulance",
         "choking",
+        "trauma",
     ]
+    if any(kw in message for kw in emergency_keywords):
+        intents.append("emergency")
 
-    for kw in emergency_keywords:
-        if kw in message:
-            return "emergency"
-
-    # 2. Billing & Insurance Keywords (Priority over general doctor/consultation words)
-    billing_keywords = [
-        "consultation fee",
-        "doctor fee",
-        "fees",
-        "fee",
-        "insurance",
-        "bill",
-        "billing",
-        "payment",
-        "refund",
-        "invoice",
-        "cost",
-        "charge",
-        "pricing",
-        "price",
-        "copay",
-        "coverage",
-        "claim",
-        "how much",
-        "pay online",
-    ]
-
-    for kw in billing_keywords:
-        if kw in message:
-            return "billing"
-
-    # 3. Appointment Scheduling Keywords
-    appointment_keywords = [
-        "book appointment",
-        "appointment",
-        "book",
-        "booking",
-        "schedule",
-        "reschedule",
-        "cancel appointment",
-        "slot",
-        "consultation",
-        "meet doctor",
-        "see doctor",
-        "timings for doctor",
-        "doctor visit",
-        "available doctor",
-    ]
-
-    for kw in appointment_keywords:
-        if kw in message:
-            return "appointment"
-
-    # 4. Symptom Triage Keywords
+    # 2. Symptom Triage Intent
     symptom_keywords = [
         "pain",
         "ache",
@@ -126,14 +80,91 @@ def detect_agent(user_message: str) -> str:
         "cramps",
         "diarrhea",
         "congestion",
+        "blood pressure",
+        "migraine",
     ]
+    if any(kw in message for kw in symptom_keywords):
+        intents.append("symptom")
 
-    for kw in symptom_keywords:
-        if kw in message:
-            return "symptom"
+    # 3. Billing & Insurance Intent
+    billing_keywords = [
+        "consultation fee",
+        "doctor fee",
+        "how much does it cost",
+        "how much do you charge",
+        "how much is",
+        "fees",
+        "fee",
+        "insurance",
+        "bill",
+        "billing",
+        "payment",
+        "refund",
+        "invoice",
+        "cost",
+        "charge",
+        "charges",
+        "pricing",
+        "price",
+        "copay",
+        "coverage",
+        "claim",
+        "pay online",
+    ]
+    if any(kw in message for kw in billing_keywords):
+        intents.append("billing")
 
-    # 5. Clinic FAQ / Information Keywords
+    # 4. Appointment Scheduling Intent
+    appointment_keywords = [
+        "book appointment",
+        "book an appointment",
+        "how can i book",
+        "how do i book",
+        "appointment",
+        "booking",
+        "schedule",
+        "reschedule",
+        "cancel appointment",
+        "slot",
+        "reserve",
+        "visit slot",
+        "meet doctor",
+        "see doctor",
+        "book consultation",
+        "doctor visit",
+        "timings for doctor",
+        "available doctor",
+    ]
+    if any(kw in message for kw in appointment_keywords):
+        intents.append("appointment")
+
+    # 5. Doctor / Specialist Intent
+    doctor_keywords = [
+        "which doctor",
+        "what doctor",
+        "who should i see",
+        "which department",
+        "specialist",
+        "cardiologist",
+        "neurologist",
+        "orthopedic",
+        "pediatrician",
+        "dermatologist",
+        "gynecologist",
+        "physician",
+        "doctors",
+        "doctor list",
+        "who to consult",
+    ]
+    if any(kw in message for kw in doctor_keywords):
+        intents.append("doctor")
+
+    # 6. FAQ & Clinic Services Intent
     faq_keywords = [
+        "what services",
+        "services do you provide",
+        "services provided",
+        "services",
         "where are you",
         "address",
         "location",
@@ -151,20 +182,29 @@ def detect_agent(user_message: str) -> str:
         "phone number",
         "hospital policy",
         "telemedicine",
+        "telehealth",
         "online consult",
         "facilities",
         "about clinic",
         "what is aura",
         "who are you",
-        "help",
     ]
+    if any(kw in message for kw in faq_keywords):
+        intents.append("faq")
 
-    for kw in faq_keywords:
-        if kw in message:
-            return "faq"
+    # If no specific intent was detected:
+    if not intents:
+        if len(message.split()) > 3:
+            intents.append("symptom")
+        else:
+            intents.append("faq")
 
-    # Default heuristic: descriptive long messages go to symptom triage, short general to FAQ
-    if len(message.split()) > 3:
-        return "symptom"
+    return intents
 
-    return "faq"
+
+def detect_agent(user_message: str) -> str:
+    """
+    Backwards-compatible wrapper returning the primary detected intent.
+    """
+    intents = detect_intents(user_message)
+    return intents[0] if intents else "faq"
