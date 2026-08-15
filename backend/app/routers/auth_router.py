@@ -9,6 +9,8 @@ from app.security import (
     verify_password,
     create_access_token,
     get_current_user,
+    get_current_employer,
+    get_current_patient,
 )
 
 router = APIRouter(tags=["Authentication"])
@@ -16,20 +18,22 @@ router = APIRouter(tags=["Authentication"])
 
 @router.post("/register")
 def register(request: RegisterRequest, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.email == request.email.lower().strip()).first()
+    email_clean = request.email.lower().strip()
+    existing_user = db.query(User).filter(User.email == email_clean).first()
 
     if existing_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
 
-    user_role = (request.role or "patient").lower().strip()
-    if user_role not in ["patient", "admin", "staff", "employer"]:
-        user_role = "patient"
-
+    # CRITICAL SECURITY RULE: Public registration ALWAYS creates role="patient".
+    # Any role sent by client is strictly ignored and forced to "patient".
     user = User(
         name=request.name.strip(),
-        email=request.email.lower().strip(),
+        email=email_clean,
         password=hash_password(request.password),
-        role=user_role,
+        role="patient",
     )
 
     db.add(user)
@@ -53,10 +57,16 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email_clean).first()
 
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
 
     if not verify_password(request.password, user.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
 
     user_role = getattr(user, "role", "patient") or "patient"
 
@@ -86,3 +96,16 @@ def get_me(current_user: User = Depends(get_current_user)):
     Returns the authenticated user's profile and active role.
     """
     return current_user
+
+
+@router.get("/employer-test")
+def employer_test(current_user: User = Depends(get_current_employer)):
+    """
+    Endpoint protected by get_current_employer dependency.
+    Returns 403 Forbidden for patients and 401 for unauthenticated requests.
+    """
+    return {
+        "status": "authorized",
+        "message": f"Welcome Employer {current_user.name}",
+        "role": current_user.role,
+    }

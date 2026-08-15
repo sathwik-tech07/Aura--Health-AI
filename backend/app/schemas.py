@@ -22,7 +22,8 @@ class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=120)
     email: EmailStr
     password: str = Field(..., min_length=6)
-    role: Optional[str] = Field(default="patient", max_length=40)
+    # Optional role field is ignored by backend logic to enforce patient role
+    role: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -115,3 +116,4 @@ class AdminStatsResponse(BaseModel):
     total_patients: int
     total_doctors: int
     estimated_revenue: float
+

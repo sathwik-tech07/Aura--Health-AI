@@ -48,6 +48,9 @@ def create_access_token(
     data: dict,
     expires_delta: Optional[timedelta] = None,
 ) -> str:
+    """
+    Encodes user identification, role, and expiration into JWT.
+    """
     to_encode = data.copy()
 
     expire = datetime.utcnow() + (
@@ -68,6 +71,9 @@ def create_access_token(
 
 
 def decode_access_token(token: str) -> Optional[dict]:
+    """
+    Decodes and validates JWT payload. Returns None if invalid or expired.
+    """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
@@ -80,7 +86,7 @@ def get_current_user_optional(
     db: Session = Depends(get_db),
 ):
     """
-    Returns authenticated user if a valid token is present, else returns None.
+    Returns authenticated User if valid token is provided; otherwise returns None.
     """
     if not auth or not auth.credentials:
         return None
@@ -103,52 +109,78 @@ def get_current_user(
     db: Session = Depends(get_db),
 ):
     """
-    Requires any authenticated user (Patient, Admin, Staff).
+    Core authentication dependency. Requires a valid JWT.
+    Raises 401 Unauthorized if token is missing, invalid, or expired.
     """
-    user = get_current_user_optional(auth, db)
-    if not user:
+    if not auth or not auth.credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required. Please sign in.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    payload = decode_access_token(auth.credentials)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication token.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    email: Optional[str] = payload.get("sub")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token subject missing.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    from app.models import User
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account not found.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     return user
 
 
 def require_role(allowed_roles: List[str]):
     """
-    Dependency factory that enforces specific roles (e.g. ['admin', 'staff']).
-    Raises HTTP 403 Forbidden if user's role is not authorized.
+    Dependency factory enforcing role-based authorization.
+    Raises 403 Forbidden if the authenticated user does not have the required role.
     """
     def role_checker(
         current_user = Depends(get_current_user),
     ):
-        user_role = getattr(current_user, "role", "patient")
-        # Admin has superuser access to all roles
-        if user_role == "admin" or user_role in allowed_roles:
+        user_role = getattr(current_user, "role", "patient") or "patient"
+        if user_role in allowed_roles:
             return current_user
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Access forbidden. This resource requires one of the following roles: {', '.join(allowed_roles)}.",
+            detail=f"Access forbidden. This resource requires role: {', '.join(allowed_roles)}.",
         )
 
     return role_checker
 
 
-def require_admin_user(
-    current_user = Depends(require_role(["admin", "staff", "employer"])),
+def get_current_patient(
+    current_user = Depends(get_current_user),
 ):
     """
-    Requires Admin / Clinic Staff role.
+    Dependency: verifies authenticated user is a patient (or employer).
     """
     return current_user
 
 
-def require_patient_user(
-    current_user = Depends(get_current_user),
+def get_current_employer(
+    current_user = Depends(require_role(["employer", "admin"])),
 ):
     """
-    Requires authenticated Patient (or Admin).
+    Dependency: verifies authenticated user has the 'employer' role.
+    Raises 403 Forbidden for patients.
     """
     return current_user
