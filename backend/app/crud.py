@@ -1,9 +1,17 @@
+import os
 from typing import Optional, Dict, Any, List
-from datetime import date, time
+from datetime import date, time, datetime
 from sqlalchemy.orm import Session, selectinload
+from dotenv import load_dotenv
 
 from app import models, schemas
 from app.security import hash_password
+
+load_dotenv()
+
+# Employer bootstrap credentials from environment variables
+EMPLOYER_EMAIL = os.getenv("EMPLOYER_EMAIL", "employer@aurahealthai.com").lower().strip()
+EMPLOYER_PASSWORD = os.getenv("EMPLOYER_PASSWORD", "Employer@Aura2026!")
 
 
 DOCTOR_SEED_DATA = [
@@ -85,21 +93,19 @@ def seed_doctors(db: Session) -> None:
         db.add_all(models.Doctor(**doctor_data) for doctor_data in DOCTOR_SEED_DATA)
         db.commit()
 
-    # Seed default employer account for testing & administration
-    employer_user = db.query(models.User).filter(models.User.email == "employer@aurahealthai.com").first()
+    # Bootstrap default employer account securely from environment variables
+    employer_user = db.query(models.User).filter(models.User.email == EMPLOYER_EMAIL).first()
     if not employer_user:
         employer_user = models.User(
             name="Clinic Employer Administrator",
-            email="employer@aurahealthai.com",
-            password=hash_password("Employer@Aura2026!"),
+            email=EMPLOYER_EMAIL,
+            password=hash_password(EMPLOYER_PASSWORD),
             role="employer",
         )
         db.add(employer_user)
         db.commit()
-        print("[Auth Seed] Seeded default employer: employer@aurahealthai.com")
     elif employer_user.role != "employer":
         employer_user.role = "employer"
-        employer_user.password = hash_password("Employer@Aura2026!")
         db.commit()
 
 
@@ -257,20 +263,56 @@ def get_conversations_by_session(db: Session, session_id: str):
     )
 
 
-def get_all_patients(db: Session):
+def get_all_patients(db: Session) -> List[Dict[str, Any]]:
     """
-    Returns registered patients for clinic/employer management.
+    Returns registered patients for clinic management, enriched with appointment metrics.
     """
-    return db.query(models.User).order_by(models.User.id.desc()).all()
+    users = db.query(models.User).order_by(models.User.id.desc()).all()
+    patient_list = []
+
+    for u in users:
+        # Count appointments for this patient
+        appts = db.query(models.Appointment).filter(models.Appointment.user_id == u.id).all()
+        appt_count = len(appts)
+        latest_date = None
+        if appts:
+            latest_appt = max(appts, key=lambda a: a.appointment_date)
+            latest_date = str(latest_appt.appointment_date)
+
+        patient_list.append({
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "role": u.role,
+            "appointment_count": appt_count,
+            "latest_appointment": latest_date or "None",
+        })
+
+    return patient_list
 
 
 def get_admin_stats(db: Session) -> Dict[str, Any]:
     """
-    Computes real-time clinic analytics for employers/administrators.
+    Computes real-time clinic analytics for employers/administrators from actual database records.
     """
+    today = date.today()
     total_appts = db.query(models.Appointment).count()
     active_appts = db.query(models.Appointment).filter(models.Appointment.status != "cancelled").count()
     cancelled_appts = db.query(models.Appointment).filter(models.Appointment.status == "cancelled").count()
+    
+    # Today's appointments
+    today_appts = db.query(models.Appointment).filter(models.Appointment.appointment_date == today).count()
+    
+    # Upcoming appointments (today or future, not cancelled)
+    upcoming_appts = (
+        db.query(models.Appointment)
+        .filter(
+            models.Appointment.appointment_date >= today,
+            models.Appointment.status != "cancelled",
+        )
+        .count()
+    )
+
     total_patients = db.query(models.User).filter(models.User.role == "patient").count()
     total_doctors = db.query(models.Doctor).count()
 
@@ -284,10 +326,11 @@ def get_admin_stats(db: Session) -> Dict[str, Any]:
 
     return {
         "total_appointments": total_appts,
+        "today_appointments": today_appts,
+        "upcoming_appointments": upcoming_appts,
         "active_appointments": active_appts,
         "cancelled_appointments": cancelled_appts,
         "total_patients": max(total_patients, 1),
         "total_doctors": total_doctors,
         "estimated_revenue": float(est_revenue),
     }
-

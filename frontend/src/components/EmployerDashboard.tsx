@@ -161,9 +161,37 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = () => {
         </div>
       )}
 
-      {/* 2. Key Metrics Grid */}
+      {/* 2. Key Metrics Grid - Real Database KPIs */}
       {stats && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <motion.div
+            whileHover={{ y: -2 }}
+            className="glass-card p-5 rounded-2xl border border-white/10 flex items-center justify-between"
+          >
+            <div>
+              <span className="text-xs text-gray-400 font-medium">Total Patients</span>
+              <h3 className="text-2xl font-bold text-white mt-1">{stats.total_patients}</h3>
+              <span className="text-[11px] text-emerald-400 font-medium">Registered Records</span>
+            </div>
+            <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400">
+              <Users className="w-5 h-5" />
+            </div>
+          </motion.div>
+
+          <motion.div
+            whileHover={{ y: -2 }}
+            className="glass-card p-5 rounded-2xl border border-white/10 flex items-center justify-between"
+          >
+            <div>
+              <span className="text-xs text-gray-400 font-medium">Total Doctors</span>
+              <h3 className="text-2xl font-bold text-white mt-1">{stats.total_doctors}</h3>
+              <span className="text-[11px] text-purple-400 font-medium">10 Departments</span>
+            </div>
+            <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-400">
+              <Stethoscope className="w-5 h-5" />
+            </div>
+          </motion.div>
+
           <motion.div
             whileHover={{ y: -2 }}
             className="glass-card p-5 rounded-2xl border border-white/10 flex items-center justify-between"
@@ -171,24 +199,10 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = () => {
             <div>
               <span className="text-xs text-gray-400 font-medium">Total Bookings</span>
               <h3 className="text-2xl font-bold text-white mt-1">{stats.total_appointments}</h3>
-              <span className="text-[11px] text-cyan-400 font-medium">{stats.active_appointments} Active Bookings</span>
+              <span className="text-[11px] text-cyan-400 font-medium">{stats.active_appointments} Active</span>
             </div>
-            <div className="p-3.5 rounded-2xl bg-cyan-500/10 text-cyan-400">
-              <Calendar className="w-6 h-6" />
-            </div>
-          </motion.div>
-
-          <motion.div
-            whileHover={{ y: -2 }}
-            className="glass-card p-5 rounded-2xl border border-white/10 flex items-center justify-between"
-          >
-            <div>
-              <span className="text-xs text-gray-400 font-medium">Registered Patients</span>
-              <h3 className="text-2xl font-bold text-white mt-1">{stats.total_patients}</h3>
-              <span className="text-[11px] text-emerald-400 font-medium">Verified Profiles</span>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-400">
-              <Users className="w-6 h-6" />
+            <div className="p-3 rounded-2xl bg-cyan-500/10 text-cyan-400">
+              <Calendar className="w-5 h-5" />
             </div>
           </motion.div>
 
@@ -197,12 +211,12 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = () => {
             className="glass-card p-5 rounded-2xl border border-white/10 flex items-center justify-between"
           >
             <div>
-              <span className="text-xs text-gray-400 font-medium">Verified Specialists</span>
-              <h3 className="text-2xl font-bold text-white mt-1">{stats.total_doctors}</h3>
-              <span className="text-[11px] text-purple-400 font-medium">Across 10 Departments</span>
+              <span className="text-xs text-gray-400 font-medium">Today's Bookings</span>
+              <h3 className="text-2xl font-bold text-white mt-1">{stats.today_appointments}</h3>
+              <span className="text-[11px] text-indigo-300 font-medium">Clinic Schedule</span>
             </div>
-            <div className="p-3.5 rounded-2xl bg-purple-500/10 text-purple-400">
-              <Stethoscope className="w-6 h-6" />
+            <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-400">
+              <Calendar className="w-5 h-5" />
             </div>
           </motion.div>
 
@@ -211,14 +225,14 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = () => {
             className="glass-card p-5 rounded-2xl border border-white/10 flex items-center justify-between"
           >
             <div>
-              <span className="text-xs text-gray-400 font-medium">Est. Clinic Revenue</span>
-              <h3 className="text-2xl font-bold text-white mt-1">₹{stats.estimated_revenue?.toLocaleString()}</h3>
+              <span className="text-xs text-gray-400 font-medium">Upcoming Bookings</span>
+              <h3 className="text-2xl font-bold text-white mt-1">{stats.upcoming_appointments}</h3>
               <span className="text-[11px] text-yellow-400 font-medium flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" /> Consultation Fees
+                <TrendingUp className="w-3 h-3" /> Future Slots
               </span>
             </div>
-            <div className="p-3.5 rounded-2xl bg-yellow-500/10 text-yellow-400">
-              <DollarSign className="w-6 h-6" />
+            <div className="p-3 rounded-2xl bg-yellow-500/10 text-yellow-400">
+              <DollarSign className="w-5 h-5" />
             </div>
           </motion.div>
         </div>
@@ -442,6 +456,8 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = () => {
                   <th className="py-3 px-3">User ID</th>
                   <th className="py-3 px-3">Full Name</th>
                   <th className="py-3 px-3">Email Address</th>
+                  <th className="py-3 px-3">Total Bookings</th>
+                  <th className="py-3 px-3">Latest Booking</th>
                   <th className="py-3 px-3">Role</th>
                   <th className="py-3 px-3">Status</th>
                 </tr>
@@ -453,6 +469,12 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = () => {
                       <td className="py-3.5 px-3 font-mono text-indigo-400">#{p.id}</td>
                       <td className="py-3.5 px-3 font-semibold text-white">{p.name}</td>
                       <td className="py-3.5 px-3 text-gray-300 font-mono">{p.email}</td>
+                      <td className="py-3.5 px-3 font-bold text-cyan-400">
+                        {p.appointment_count || 0}
+                      </td>
+                      <td className="py-3.5 px-3 text-gray-300">
+                        {p.latest_appointment || 'None'}
+                      </td>
                       <td className="py-3.5 px-3">
                         <span
                           className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
@@ -473,7 +495,7 @@ export const EmployerDashboard: React.FC<EmployerDashboardProps> = () => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="text-center py-8 text-gray-400">
+                    <td colSpan={7} className="text-center py-8 text-gray-400">
                       No matching patients found.
                     </td>
                   </tr>

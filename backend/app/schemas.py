@@ -14,8 +14,22 @@ class UserResponse(BaseModel):
     name: str
     email: str
     role: str
+    appointment_count: Optional[int] = 0
+    latest_appointment: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdminStatsResponse(BaseModel):
+    total_appointments: int
+    today_appointments: int
+    upcoming_appointments: int
+    active_appointments: int
+    cancelled_appointments: int
+    total_patients: int
+    total_doctors: int
+    estimated_revenue: float
+
 
 
 class RegisterRequest(BaseModel):
@@ -107,13 +121,4 @@ class ConversationResponse(BaseModel):
     timestamp: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class AdminStatsResponse(BaseModel):
-    total_appointments: int
-    active_appointments: int
-    cancelled_appointments: int
-    total_patients: int
-    total_doctors: int
-    estimated_revenue: float
 
