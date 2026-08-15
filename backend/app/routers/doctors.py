@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app import crud, schemas
@@ -8,5 +9,8 @@ router = APIRouter(tags=["Doctors"])
 
 
 @router.get("/doctors", response_model=list[schemas.DoctorResponse])
-def get_doctors(db: Session = Depends(get_db)):
-    return crud.get_available_doctors(db)
+def get_doctors(
+    department: Optional[str] = Query(None, description="Filter by department"),
+    db: Session = Depends(get_db),
+):
+    return crud.get_available_doctors(db, department=department)

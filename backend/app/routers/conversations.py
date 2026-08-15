@@ -19,6 +19,17 @@ def create_conversation(
     return crud.create_conversation(db, conversation)
 
 
-@router.get("/history/{session_id}", response_model=list[schemas.ConversationResponse])
+@router.get("/history/{session_id}")
 def get_history(session_id: str, db: Session = Depends(get_db)):
-    return crud.get_conversations_by_session(db, session_id)
+    records = crud.get_conversations_by_session(db, session_id)
+    # Return formatted list compatible with both array responses and object responses
+    return [
+        {
+            "id": r.id,
+            "session_id": r.session_id,
+            "user_message": r.user_message,
+            "ai_response": r.ai_response,
+            "timestamp": r.timestamp.isoformat() if r.timestamp else "",
+        }
+        for r in records
+    ]

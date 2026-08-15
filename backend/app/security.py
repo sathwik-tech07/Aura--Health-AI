@@ -1,18 +1,27 @@
+import os
 from datetime import datetime, timedelta
 from typing import Optional
-
-from jose import jwt
+from dotenv import load_dotenv
+from jose import JWTError, jwt
 from passlib.context import CryptContext
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.orm import Session
+from app.database import get_db
 
-# Change this before deploying to production
-SECRET_KEY = "aurahealth-super-secret-key-change-this"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+load_dotenv()
+
+# Environment-based secret key with secure fallback for local dev
+SECRET_KEY = os.getenv("SECRET_KEY", "aurahealth-production-secure-key-v2-replace-in-env")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 7)))  # 7 days default
 
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto"
 )
+
+security_scheme = HTTPBearer(auto_error=False)
 
 
 def hash_password(password: str) -> str:
@@ -32,7 +41,7 @@ def verify_password(
 def create_access_token(
     data: dict,
     expires_delta: Optional[timedelta] = None,
-):
+) -> str:
     to_encode = data.copy()
 
     expire = datetime.utcnow() + (
@@ -50,3 +59,45 @@ def create_access_token(
     )
 
     return encoded_jwt
+
+
+def decode_access_token(token: str) -> Optional[dict]:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except JWTError:
+        return None
+
+
+def get_current_user_optional(
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+    db: Session = Depends(get_db),
+):
+    if not auth or not auth.credentials:
+        return None
+
+    payload = decode_access_token(auth.credentials)
+    if not payload:
+        return None
+
+    email: Optional[str] = payload.get("sub")
+    if not email:
+        return None
+
+    from app.models import User
+    user = db.query(User).filter(User.email == email).first()
+    return user
+
+
+def get_current_user(
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+    db: Session = Depends(get_db),
+):
+    user = get_current_user_optional(auth, db)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
