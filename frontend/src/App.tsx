@@ -21,15 +21,12 @@ import DoctorDirectory from './pages/DoctorDirectory';
 import SessionBadge from './components/SessionBadge';
 import LanguageSelector from './components/LanguageSelector';
 import LoginModal from './components/LoginModal';
+import EmployerLoginModal from './components/EmployerLoginModal';
 
 function App() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isBookOpen, setIsBookOpen] = useState(false);
-
-  const [page, setPage] = useState<PageKey>('none');
-  const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
-  const [recentAppointment, setRecentAppointment] = useState<any | null>(null);
 
   // Authentication token and user role state
   const [token, setToken] = useState<string | null>(() => {
@@ -47,7 +44,31 @@ function App() {
     }
   });
 
-  const [loginOpen, setLoginOpen] = useState(false);
+  // Default page route based on stored role
+  const [page, setPage] = useState<PageKey>(() => {
+    if (typeof window === 'undefined') return 'none';
+    const storedToken = localStorage.getItem('aura_token');
+    const storedUserStr = localStorage.getItem('aura_user');
+    if (storedToken && storedUserStr) {
+      try {
+        const parsed = JSON.parse(storedUserStr);
+        if (parsed.role === 'employer' || parsed.role === 'admin' || parsed.role === 'staff') {
+          return 'employer';
+        }
+        return 'dashboard';
+      } catch {
+        return 'none';
+      }
+    }
+    return 'none';
+  });
+
+  const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
+  const [recentAppointment, setRecentAppointment] = useState<any | null>(null);
+
+  // Separate Patient and Employer login modal states
+  const [patientLoginOpen, setPatientLoginOpen] = useState(false);
+  const [employerLoginOpen, setEmployerLoginOpen] = useState(false);
 
   // Persistent session ID
   const [sessionId] = useState<string>(() => {
@@ -77,24 +98,23 @@ function App() {
   const handleNavigate = (targetPage: PageKey) => {
     // 1. Guard for Patient Dashboard
     if (targetPage === 'dashboard' && !token) {
-      setLoginOpen(true);
+      setPatientLoginOpen(true);
       return;
     }
 
     // 2. Guard for Employer Dashboard
     if (targetPage === 'employer' && !token) {
-      setLoginOpen(true);
+      setEmployerLoginOpen(true);
       return;
     }
 
     setPage(targetPage);
   };
 
-  const handleLoginSuccess = (newToken: string, newUser?: any) => {
+  const handlePatientLoginSuccess = (newToken: string, newUser?: any) => {
     setToken(newToken);
     if (newUser) {
       setUser(newUser);
-      // Role-based login redirection
       if (newUser.role === 'employer' || newUser.role === 'admin') {
         setPage('employer');
       } else {
@@ -103,6 +123,14 @@ function App() {
     } else {
       setPage('dashboard');
     }
+  };
+
+  const handleEmployerLoginSuccess = (newToken: string, newUser?: any) => {
+    setToken(newToken);
+    if (newUser) {
+      setUser(newUser);
+    }
+    setPage('employer');
   };
 
   const handleLogout = () => {
@@ -114,7 +142,7 @@ function App() {
   };
 
   const isAuthenticated = Boolean(token);
-  const isEmployerRole = user?.role === 'employer' || user?.role === 'admin';
+  const isEmployerRole = user?.role === 'employer' || user?.role === 'admin' || user?.role === 'staff';
   const isLanding = !isAuthenticated || page === 'none';
 
   return (
@@ -126,15 +154,16 @@ function App() {
         currentPage={page}
         token={token}
         user={user}
-        onLogin={() => setLoginOpen(true)}
+        onPatientLogin={() => setPatientLoginOpen(true)}
+        onEmployerLogin={() => setEmployerLoginOpen(true)}
         onLogout={handleLogout}
         onNavigate={handleNavigate}
         onStartChat={() => {
-          if (!isAuthenticated) setLoginOpen(true);
+          if (!isAuthenticated) setPatientLoginOpen(true);
           else setIsChatOpen(true);
         }}
         onStartVoice={() => {
-          if (!isAuthenticated) setLoginOpen(true);
+          if (!isAuthenticated) setPatientLoginOpen(true);
           else setIsVoiceOpen(true);
         }}
       />
@@ -143,7 +172,7 @@ function App() {
       {isLanding && (
         <main>
           <Hero
-            onGetStarted={() => setLoginOpen(true)}
+            onGetStarted={() => setPatientLoginOpen(true)}
             onExploreFeatures={() => {
               const el = document.getElementById('features');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -160,25 +189,35 @@ function App() {
 
           <Testimonials />
 
-          <CTA onGetStarted={() => setLoginOpen(true)} />
+          <CTA onGetStarted={() => setPatientLoginOpen(true)} />
 
-          <Footer onLoginClick={() => setLoginOpen(true)} />
+          <Footer onLoginClick={() => setPatientLoginOpen(true)} />
         </main>
       )}
 
       {/* 2. AUTHENTICATED PATIENT PORTAL DASHBOARD */}
       {isAuthenticated && page === 'dashboard' && (
         <main className="min-h-screen">
-          <PatientDashboard
-            onStartChat={() => setIsChatOpen(true)}
-            onStartVoice={() => setIsVoiceOpen(true)}
-            onOpenBookModal={(doctorId) => {
-              setSelectedDoctor(doctorId || null);
-              setIsBookOpen(true);
-            }}
-            onNavigate={(p) => handleNavigate(p)}
-            sessionId={sessionId}
-          />
+          {isEmployerRole ? (
+            <AccessDenied
+              role="employer"
+              attemptedPage="patient"
+              onGoHome={() => setPage('none')}
+              onGoPatientDashboard={() => setPage('dashboard')}
+              onGoEmployerDashboard={() => setPage('employer')}
+            />
+          ) : (
+            <PatientDashboard
+              onStartChat={() => setIsChatOpen(true)}
+              onStartVoice={() => setIsVoiceOpen(true)}
+              onOpenBookModal={(doctorId) => {
+                setSelectedDoctor(doctorId || null);
+                setIsBookOpen(true);
+              }}
+              onNavigate={(p) => handleNavigate(p)}
+              sessionId={sessionId}
+            />
+          )}
         </main>
       )}
 
@@ -189,6 +228,8 @@ function App() {
             <EmployerDashboard onNavigate={(p) => handleNavigate(p)} />
           ) : (
             <AccessDenied
+              role="patient"
+              attemptedPage="employer"
               onGoHome={() => setPage('none')}
               onGoPatientDashboard={() => setPage('dashboard')}
             />
@@ -275,11 +316,18 @@ function App() {
       {/* Floating Language Selector */}
       <LanguageSelector variant="floating" />
 
-      {/* Login & Register Modal with Role Redirection */}
+      {/* 1. Dedicated Patient Login & Registration Modal */}
       <LoginModal
-        open={loginOpen}
-        onClose={() => setLoginOpen(false)}
-        onLogin={handleLoginSuccess}
+        open={patientLoginOpen}
+        onClose={() => setPatientLoginOpen(false)}
+        onLogin={handlePatientLoginSuccess}
+      />
+
+      {/* 2. Dedicated Employer & Staff Login Modal */}
+      <EmployerLoginModal
+        open={employerLoginOpen}
+        onClose={() => setEmployerLoginOpen(false)}
+        onLoginSuccess={handleEmployerLoginSuccess}
       />
     </div>
   );

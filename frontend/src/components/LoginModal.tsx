@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Lock, Mail, User, LogIn, UserPlus, AlertCircle, ShieldCheck } from 'lucide-react';
+import { X, Lock, Mail, User, LogIn, UserPlus, AlertCircle, ShieldCheck, HeartPulse } from 'lucide-react';
 import { apiClient } from '../api/config';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   onLogin?: (token: string, user?: any) => void;
 }
 
-const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
+export const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -40,7 +40,7 @@ const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
           password,
         });
 
-        setSuccessInfo('Account created successfully! Please sign in with your credentials.');
+        setSuccessInfo('Patient account created successfully! You can now sign in below.');
         setIsRegister(false);
         setPassword('');
       } else {
@@ -66,7 +66,11 @@ const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
         }
       }
     } catch (err: any) {
-      setError(err?.message || 'Authentication failed. Please check your credentials.');
+      setError(
+        err?.response?.data?.detail ||
+        err?.message ||
+        'Authentication failed. Please check your credentials.'
+      );
     } finally {
       setLoading(false);
     }
@@ -89,18 +93,21 @@ const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
           initial={{ y: 20, opacity: 0, scale: 0.95 }}
           animate={{ y: 0, opacity: 1, scale: 1 }}
           exit={{ y: 20, opacity: 0, scale: 0.95 }}
-          className="relative z-10 w-full max-w-md rounded-3xl bg-dark-900 border border-cyan-500/25 p-7 shadow-[0_0_50px_rgba(6,182,212,0.2)]"
+          className="relative z-10 w-full max-w-md rounded-3xl bg-dark-900 border border-cyan-500/25 p-7 sm:p-8 shadow-[0_0_50px_rgba(6,182,212,0.2)] space-y-6"
         >
-          <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                {isRegister ? <UserPlus className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
+          {/* Header */}
+          <div className="flex items-center justify-between pb-4 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                <HeartPulse className="w-6 h-6" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-white tracking-tight">
-                  {isRegister ? 'Create Patient Profile' : 'Sign in to AuraHealth'}
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                  Patient Portal
+                </span>
+                <h2 className="text-xl font-extrabold text-white tracking-tight mt-0.5">
+                  {isRegister ? 'Create Patient Account' : 'Sign in to Patient Portal'}
                 </h2>
-                <p className="text-xs text-gray-400">Secure Medical Portal Access</p>
               </div>
             </div>
             <button
@@ -111,31 +118,38 @@ const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
             </button>
           </div>
 
+          <p className="text-xs text-gray-300">
+            Your personal AI-powered healthcare assistant for symptom assessment, voice triage, and doctor scheduling.
+          </p>
+
+          {/* Error message */}
           {error && (
-            <div className="mb-4 p-3 rounded-xl bg-rose-950/40 border border-rose-500/30 text-xs text-rose-300 flex items-center gap-2">
+            <div className="p-3 rounded-2xl bg-rose-950/40 border border-rose-500/30 text-xs text-rose-300 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
+          {/* Success message */}
           {successInfo && (
-            <div className="mb-4 p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
+            <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-xs text-emerald-300 flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
               <span>{successInfo}</span>
             </div>
           )}
 
+          {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             {isRegister && (
               <div>
-                <label className="text-xs text-gray-400 mb-1.5 block">Full Name</label>
+                <label className="text-xs font-semibold text-gray-300 mb-1.5 block">Full Name</label>
                 <div className="relative">
-                  <User className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <User className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     required
-                    placeholder="Sarah Connor"
-                    className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-500/50"
+                    placeholder="Sathwik Reddy"
+                    className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-cyan-500/50"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
@@ -144,14 +158,14 @@ const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
             )}
 
             <div>
-              <label className="text-xs text-gray-400 mb-1.5 block">Email Address</label>
+              <label className="text-xs font-semibold text-gray-300 mb-1.5 block">Email Address</label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
                   required
                   placeholder="patient@example.com"
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-500/50"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-cyan-500/50"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -159,14 +173,14 @@ const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
             </div>
 
             <div>
-              <label className="text-xs text-gray-400 mb-1.5 block">Password</label>
+              <label className="text-xs font-semibold text-gray-300 mb-1.5 block">Password</label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="password"
                   required
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-cyan-500/50"
+                  placeholder="••••••••••••"
+                  className="w-full pl-10 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-2xl text-xs text-white focus:outline-none focus:border-cyan-500/50"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -176,13 +190,26 @@ const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-dark-950 font-bold text-sm shadow-[0_0_20px_rgba(6,182,212,0.3)] transition disabled:opacity-50 mt-2"
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-dark-950 font-extrabold text-xs shadow-[0_0_20px_rgba(6,182,212,0.3)] transition disabled:opacity-50 mt-2 flex items-center justify-center gap-2"
             >
-              {loading ? 'Authenticating...' : isRegister ? 'Create Account' : 'Sign In'}
+              {loading ? (
+                'Processing...'
+              ) : isRegister ? (
+                <>
+                  <UserPlus className="w-4 h-4" />
+                  <span>Create Patient Account</span>
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4" />
+                  <span>Login to Patient Portal</span>
+                </>
+              )}
             </button>
           </form>
 
-          <div className="mt-5 pt-4 border-t border-white/10 flex flex-col gap-2 text-center">
+          {/* Toggle between Login and Register */}
+          <div className="pt-4 border-t border-white/10 text-center">
             <button
               type="button"
               onClick={() => {
@@ -190,9 +217,11 @@ const LoginModal: React.FC<Props> = ({ open, onClose, onLogin }) => {
                 setError('');
                 setSuccessInfo('');
               }}
-              className="text-xs text-cyan-400 hover:underline"
+              className="text-xs text-cyan-400 hover:underline font-medium"
             >
-              {isRegister ? 'Already registered? Sign in here' : "Don't have an account? Create one"}
+              {isRegister
+                ? 'Already have an account? Sign in here'
+                : "New patient? Create your account"}
             </button>
           </div>
         </motion.div>
