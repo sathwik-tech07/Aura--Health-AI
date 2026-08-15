@@ -1,3 +1,5 @@
+from typing import Optional, Dict, Any
+from datetime import date, time
 from sqlalchemy.orm import Session, selectinload
 
 from app import models, schemas
@@ -78,20 +80,16 @@ DOCTOR_SEED_DATA = [
 
 
 def seed_doctors(db: Session) -> None:
-    if db.query(models.Doctor).count():
-        return
-
-    db.add_all(models.Doctor(**doctor_data) for doctor_data in DOCTOR_SEED_DATA)
-    db.commit()
+    if db.query(models.Doctor).count() == 0:
+        db.add_all(models.Doctor(**doctor_data) for doctor_data in DOCTOR_SEED_DATA)
+        db.commit()
 
 
-def get_available_doctors(db: Session):
-    return (
-        db.query(models.Doctor)
-        .filter(models.Doctor.available.is_(True))
-        .order_by(models.Doctor.department, models.Doctor.name)
-        .all()
-    )
+def get_available_doctors(db: Session, department: Optional[str] = None):
+    query = db.query(models.Doctor)
+    if department:
+        query = query.filter(models.Doctor.department.ilike(f"%{department}%"))
+    return query.order_by(models.Doctor.department, models.Doctor.name).all()
 
 
 def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
@@ -130,9 +128,55 @@ def get_appointments(db: Session):
     return (
         db.query(models.Appointment)
         .options(selectinload(models.Appointment.doctor))
-        .order_by(models.Appointment.appointment_date, models.Appointment.appointment_time)
+        .order_by(models.Appointment.appointment_date.desc(), models.Appointment.appointment_time.desc())
         .all()
     )
+
+
+def get_appointment_by_id(db: Session, appointment_id: int):
+    return (
+        db.query(models.Appointment)
+        .options(selectinload(models.Appointment.doctor))
+        .filter(models.Appointment.id == appointment_id)
+        .first()
+    )
+
+
+def update_appointment(db: Session, appointment_id: int, update_data: Dict[str, Any]):
+    appointment = (
+        db.query(models.Appointment)
+        .options(selectinload(models.Appointment.doctor))
+        .filter(models.Appointment.id == appointment_id)
+        .first()
+    )
+    if not appointment:
+        return None
+
+    for key, value in update_data.items():
+        if value is not None and hasattr(appointment, key):
+            if key == "appointment_time" and isinstance(value, str):
+                parts = value.split(":")
+                val_time = time(int(parts[0]), int(parts[1]))
+                setattr(appointment, key, val_time)
+            elif key == "appointment_date" and isinstance(value, str):
+                parts = value.split("-")
+                val_date = date(int(parts[0]), int(parts[1]), int(parts[2]))
+                setattr(appointment, key, val_date)
+            else:
+                setattr(appointment, key, value)
+
+    db.commit()
+    db.refresh(appointment)
+    return appointment
+
+
+def delete_appointment(db: Session, appointment_id: int) -> bool:
+    appointment = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    if not appointment:
+        return False
+    db.delete(appointment)
+    db.commit()
+    return True
 
 
 def create_conversation(db: Session, conversation: schemas.ConversationCreate):

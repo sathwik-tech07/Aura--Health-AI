@@ -1,6 +1,8 @@
+import os
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.crud import seed_doctors
@@ -17,13 +19,14 @@ from app.services.ai_service import generate_response
 from app.services.dashboard_service import generate_dashboard
 from voice import text_to_speech
 
+load_dotenv()
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
 
     db = SessionLocal()
-
     try:
         seed_doctors(db)
     finally:
@@ -33,13 +36,22 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="AuraHealth AI",
+    title="AuraHealth AI V2",
+    description="Production-grade AI Healthcare Platform with Multi-Agent Triage, Voice AI, and Clinical Scheduling",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
+# CORS Configuration
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins_env == "*":
+    origins = ["*"]
+else:
+    origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,9 +67,10 @@ app.include_router(conversations_router)
 @app.get("/")
 def root():
     return {
-        "status": "running",
-        "project": "AuraHealth AI",
-        "message": "AI Healthcare Assistant Running",
+        "status": "online",
+        "version": "2.0.0",
+        "project": "AuraHealth AI V2",
+        "message": "AI Healthcare Multi-Agent & Voice Assistant Running",
     }
 
 
@@ -72,13 +85,14 @@ def chat(request: ChatRequest):
     return {
         "response": response,
         "language": request.language,
+        "session_id": request.session_id,
     }
 
 
 @app.post("/dashboard")
 def dashboard(request: ChatRequest):
-    dashboard = generate_dashboard(request.message)
-    return dashboard
+    dashboard_data = generate_dashboard(request.message)
+    return dashboard_data
 
 
 @app.post("/voice")
@@ -96,10 +110,16 @@ def voice(request: ChatRequest):
 
     if audio is None:
         return {
-            "error": "Voice generation failed"
+            "error": "Voice generation unavailable",
+            "response": response,
+            "language": request.language,
         }
 
     return Response(
         content=audio,
         media_type="audio/mpeg",
+        headers={
+            "X-Aura-Response": response[:200].encode("ascii", "ignore").decode("ascii"),
+            "X-Aura-Language": request.language,
+        },
     )

@@ -1,5 +1,5 @@
 from datetime import date, datetime, time
-
+from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -30,6 +30,15 @@ class AppointmentCreate(BaseModel):
     status: str = Field(default="booked", max_length=40)
 
 
+class AppointmentUpdate(BaseModel):
+    patient_name: Optional[str] = None
+    phone: Optional[str] = None
+    appointment_date: Optional[date] = None
+    appointment_time: Optional[time] = None
+    symptoms: Optional[str] = None
+    status: Optional[str] = None
+
+
 class AppointmentResponse(BaseModel):
     id: int
     patient_name: str
@@ -39,7 +48,7 @@ class AppointmentResponse(BaseModel):
     appointment_time: time
     symptoms: str
     status: str
-    doctor: DoctorResponse
+    doctor: Optional[DoctorResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
 
