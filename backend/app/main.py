@@ -43,17 +43,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS Configuration
-allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "*")
-if allowed_origins_env == "*":
-    origins = ["*"]
-else:
-    origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["X-Aura-Response-Base64", "X-Aura-Language", "X-Aura-Session-Id"],
