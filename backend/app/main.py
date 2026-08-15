@@ -52,11 +52,14 @@ app.add_middleware(
     expose_headers=["X-Aura-Response-Base64", "X-Aura-Language", "X-Aura-Session-Id"],
 )
 
+from app.routers.admin import router as admin_router
+
 # Register Routers
 app.include_router(auth_router)
 app.include_router(doctors_router)
 app.include_router(appointments_router)
 app.include_router(conversations_router)
+app.include_router(admin_router)
 
 
 @app.get("/")

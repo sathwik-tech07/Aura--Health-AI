@@ -1,4 +1,5 @@
 from datetime import date, datetime, time
+from typing import Optional, List
 
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,7 +17,7 @@ class Doctor(Base):
     consultation_fee: Mapped[float] = mapped_column(Float, nullable=False)
     available: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    appointments: Mapped[list["Appointment"]] = relationship(
+    appointments: Mapped[List["Appointment"]] = relationship(
         back_populates="doctor",
         cascade="all, delete-orphan",
     )
@@ -26,6 +27,7 @@ class Appointment(Base):
     __tablename__ = "appointments"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     patient_name: Mapped[str] = mapped_column(String(120), nullable=False)
     phone: Mapped[str] = mapped_column(String(20), nullable=False)
     doctor_id: Mapped[int] = mapped_column(ForeignKey("doctors.id"), nullable=False)
@@ -35,12 +37,14 @@ class Appointment(Base):
     status: Mapped[str] = mapped_column(String(40), default="booked", nullable=False)
 
     doctor: Mapped["Doctor"] = relationship(back_populates="appointments")
+    user: Mapped[Optional["User"]] = relationship(back_populates="appointments")
 
 
 class Conversation(Base):
     __tablename__ = "conversations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     session_id: Mapped[str] = mapped_column(String(120), index=True, nullable=False)
     user_message: Mapped[str] = mapped_column(Text, nullable=False)
     ai_response: Mapped[str] = mapped_column(Text, nullable=False)
@@ -62,4 +66,15 @@ class User(Base):
         index=True,
         nullable=False,
     )
-    password: Mapped[str] = mapped_column(String(255), nullable=False) 
+    password: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(
+        String(40),
+        default="patient",
+        nullable=False,
+        index=True,
+    )
+
+    appointments: Mapped[List["Appointment"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )

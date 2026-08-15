@@ -10,6 +10,7 @@ import { CTA } from './components/CTA';
 import { ChatWidget } from './components/ChatWidget';
 import { VoiceWidget } from './components/VoiceWidget';
 import { PatientDashboard } from './components/PatientDashboard';
+import { AdminDashboard } from './components/AdminDashboard';
 import BookAppointmentModal from './components/BookAppointmentModal';
 import AppointmentHistory from './pages/AppointmentHistory';
 import ConversationHistory from './pages/ConversationHistory';
@@ -27,10 +28,20 @@ function App() {
   const [selectedDoctor, setSelectedDoctor] = useState<string | null>(null);
   const [recentAppointment, setRecentAppointment] = useState<any | null>(null);
 
-  // User authentication token state
+  // User authentication token and role state
   const [token, setToken] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('aura_token');
+  });
+
+  const [user, setUser] = useState<any | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = localStorage.getItem('aura_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
   });
 
   const [loginOpen, setLoginOpen] = useState(false);
@@ -60,10 +71,25 @@ function App() {
     });
   }, [page]);
 
+  const handleLoginSuccess = (newToken: string, newUser?: any) => {
+    setToken(newToken);
+    if (newUser) {
+      setUser(newUser);
+      if (newUser.role === 'admin' || newUser.role === 'staff') {
+        setPage('admin');
+      } else {
+        setPage('dashboard');
+      }
+    } else {
+      setPage('dashboard');
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('aura_token');
     localStorage.removeItem('aura_user');
     setToken(null);
+    setUser(null);
     setPage('none');
   };
 
@@ -73,10 +99,11 @@ function App() {
     <div className="relative min-h-screen bg-dark-950 text-gray-100 overflow-x-hidden">
       <ParticlesBackground />
 
-      {/* Top Header Navigation */}
+      {/* Top Header Navigation with Role Awareness */}
       <Header
         currentPage={page}
         token={token}
+        user={user}
         onLogin={() => setLoginOpen(true)}
         onLogout={handleLogout}
         onNavigate={(p) => setPage(p)}
@@ -104,7 +131,7 @@ function App() {
         </main>
       )}
 
-      {/* Patient Dashboard View */}
+      {/* Patient Health Dashboard View */}
       {page === 'dashboard' && (
         <main>
           <PatientDashboard
@@ -117,6 +144,13 @@ function App() {
             onNavigate={(p) => setPage(p)}
             sessionId={sessionId}
           />
+        </main>
+      )}
+
+      {/* Executive Admin Management Portal */}
+      {page === 'admin' && (
+        <main>
+          <AdminDashboard onNavigate={(p) => setPage(p)} />
         </main>
       )}
 
@@ -199,14 +233,11 @@ function App() {
       {/* Floating Language Selector */}
       <LanguageSelector variant="floating" />
 
-      {/* Login & Register Modal */}
+      {/* Login & Register Modal with RBAC */}
       <LoginModal
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
-        onLogin={(t) => {
-          setToken(t);
-          setLoginOpen(false);
-        }}
+        onLogin={handleLoginSuccess}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 import os
 import bcrypt
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from dotenv import load_dotenv
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
@@ -79,6 +79,9 @@ def get_current_user_optional(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     db: Session = Depends(get_db),
 ):
+    """
+    Returns authenticated user if a valid token is present, else returns None.
+    """
     if not auth or not auth.credentials:
         return None
 
@@ -99,11 +102,53 @@ def get_current_user(
     auth: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     db: Session = Depends(get_db),
 ):
+    """
+    Requires any authenticated user (Patient, Admin, Staff).
+    """
     user = get_current_user_optional(auth, db)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired authentication credentials",
+            detail="Authentication required. Please sign in.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+def require_role(allowed_roles: List[str]):
+    """
+    Dependency factory that enforces specific roles (e.g. ['admin', 'staff']).
+    Raises HTTP 403 Forbidden if user's role is not authorized.
+    """
+    def role_checker(
+        current_user = Depends(get_current_user),
+    ):
+        user_role = getattr(current_user, "role", "patient")
+        # Admin has superuser access to all roles
+        if user_role == "admin" or user_role in allowed_roles:
+            return current_user
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access forbidden. This resource requires one of the following roles: {', '.join(allowed_roles)}.",
+        )
+
+    return role_checker
+
+
+def require_admin_user(
+    current_user = Depends(require_role(["admin", "staff", "employer"])),
+):
+    """
+    Requires Admin / Clinic Staff role.
+    """
+    return current_user
+
+
+def require_patient_user(
+    current_user = Depends(get_current_user),
+):
+    """
+    Requires authenticated Patient (or Admin).
+    """
+    return current_user
