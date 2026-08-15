@@ -255,3 +255,39 @@ def get_conversations_by_session(db: Session, session_id: str):
         .order_by(models.Conversation.timestamp.asc())
         .all()
     )
+
+
+def get_all_patients(db: Session):
+    """
+    Returns registered patients for clinic/employer management.
+    """
+    return db.query(models.User).order_by(models.User.id.desc()).all()
+
+
+def get_admin_stats(db: Session) -> Dict[str, Any]:
+    """
+    Computes real-time clinic analytics for employers/administrators.
+    """
+    total_appts = db.query(models.Appointment).count()
+    active_appts = db.query(models.Appointment).filter(models.Appointment.status != "cancelled").count()
+    cancelled_appts = db.query(models.Appointment).filter(models.Appointment.status == "cancelled").count()
+    total_patients = db.query(models.User).filter(models.User.role == "patient").count()
+    total_doctors = db.query(models.Doctor).count()
+
+    active_with_docs = (
+        db.query(models.Doctor.consultation_fee)
+        .join(models.Appointment, models.Appointment.doctor_id == models.Doctor.id)
+        .filter(models.Appointment.status != "cancelled")
+        .all()
+    )
+    est_revenue = sum(row[0] for row in active_with_docs) if active_with_docs else 0.0
+
+    return {
+        "total_appointments": total_appts,
+        "active_appointments": active_appts,
+        "cancelled_appointments": cancelled_appts,
+        "total_patients": max(total_patients, 1),
+        "total_doctors": total_doctors,
+        "estimated_revenue": float(est_revenue),
+    }
+

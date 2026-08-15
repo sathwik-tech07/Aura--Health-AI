@@ -10,7 +10,8 @@ import { CTA } from './components/CTA';
 import { ChatWidget } from './components/ChatWidget';
 import { VoiceWidget } from './components/VoiceWidget';
 import { PatientDashboard } from './components/PatientDashboard';
-import { AdminDashboard } from './components/AdminDashboard';
+import { EmployerDashboard } from './components/EmployerDashboard';
+import { AccessDenied } from './components/AccessDenied';
 import BookAppointmentModal from './components/BookAppointmentModal';
 import AppointmentHistory from './pages/AppointmentHistory';
 import ConversationHistory from './pages/ConversationHistory';
@@ -71,12 +72,29 @@ function App() {
     });
   }, [page]);
 
+  const handleNavigate = (targetPage: PageKey) => {
+    // 1. Guard for Patient Dashboard
+    if (targetPage === 'dashboard' && !token) {
+      setLoginOpen(true);
+      return;
+    }
+
+    // 2. Guard for Employer Dashboard
+    if (targetPage === 'employer' && !token) {
+      setLoginOpen(true);
+      return;
+    }
+
+    setPage(targetPage);
+  };
+
   const handleLoginSuccess = (newToken: string, newUser?: any) => {
     setToken(newToken);
     if (newUser) {
       setUser(newUser);
-      if (newUser.role === 'admin' || newUser.role === 'staff') {
-        setPage('admin');
+      // Role-based login redirection
+      if (newUser.role === 'employer' || newUser.role === 'admin') {
+        setPage('employer');
       } else {
         setPage('dashboard');
       }
@@ -94,6 +112,7 @@ function App() {
   };
 
   const isLanding = page === 'none';
+  const isEmployerRole = user?.role === 'employer' || user?.role === 'admin';
 
   return (
     <div className="relative min-h-screen bg-dark-950 text-gray-100 overflow-x-hidden">
@@ -106,12 +125,12 @@ function App() {
         user={user}
         onLogin={() => setLoginOpen(true)}
         onLogout={handleLogout}
-        onNavigate={(p) => setPage(p)}
+        onNavigate={handleNavigate}
         onStartChat={() => setIsChatOpen(true)}
         onStartVoice={() => setIsVoiceOpen(true)}
       />
 
-      {/* Landing Page View */}
+      {/* Public Landing Page View */}
       {isLanding && (
         <main>
           <Hero
@@ -134,23 +153,40 @@ function App() {
       {/* Patient Health Dashboard View */}
       {page === 'dashboard' && (
         <main>
-          <PatientDashboard
-            onStartChat={() => setIsChatOpen(true)}
-            onStartVoice={() => setIsVoiceOpen(true)}
-            onOpenBookModal={(doctorId) => {
-              setSelectedDoctor(doctorId || null);
-              setIsBookOpen(true);
-            }}
-            onNavigate={(p) => setPage(p)}
-            sessionId={sessionId}
-          />
+          {token ? (
+            <PatientDashboard
+              onStartChat={() => setIsChatOpen(true)}
+              onStartVoice={() => setIsVoiceOpen(true)}
+              onOpenBookModal={(doctorId) => {
+                setSelectedDoctor(doctorId || null);
+                setIsBookOpen(true);
+              }}
+              onNavigate={(p) => handleNavigate(p)}
+              sessionId={sessionId}
+            />
+          ) : (
+            <div className="pt-32 text-center text-gray-400">
+              <p>Authentication required. Please sign in.</p>
+            </div>
+          )}
         </main>
       )}
 
-      {/* Executive Admin Management Portal */}
-      {page === 'admin' && (
+      {/* Employer & Clinic Administration Portal */}
+      {page === 'employer' && (
         <main>
-          <AdminDashboard onNavigate={(p) => setPage(p)} />
+          {!token ? (
+            <div className="pt-32 text-center text-gray-400">
+              <p>Authentication required. Please sign in with an employer account.</p>
+            </div>
+          ) : isEmployerRole ? (
+            <EmployerDashboard onNavigate={(p) => handleNavigate(p)} />
+          ) : (
+            <AccessDenied
+              onGoHome={() => setPage('none')}
+              onGoPatientDashboard={() => setPage('dashboard')}
+            />
+          )}
         </main>
       )}
 
@@ -233,7 +269,7 @@ function App() {
       {/* Floating Language Selector */}
       <LanguageSelector variant="floating" />
 
-      {/* Login & Register Modal with RBAC */}
+      {/* Login & Register Modal with Role Redirection */}
       <LoginModal
         open={loginOpen}
         onClose={() => setLoginOpen(false)}

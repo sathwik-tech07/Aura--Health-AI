@@ -7,7 +7,8 @@ from app.database import get_db
 from app.security import (
     get_current_user_optional,
     get_current_user,
-    require_role,
+    require_patient,
+    require_employer,
 )
 
 router = APIRouter(tags=["Appointments"])
@@ -33,10 +34,10 @@ def book_appointment(
 @router.get("/appointments/my", response_model=List[schemas.AppointmentResponse])
 def get_my_appointments(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_patient),
 ):
     """
-    Patient-only / self appointment view: returns only appointments for the logged-in user.
+    Patient-only / self appointment view: returns strictly the logged-in patient's appointments.
     """
     return crud.get_user_appointments(db, user_id=current_user.id, email=current_user.email)
 
@@ -44,35 +45,34 @@ def get_my_appointments(
 @router.get("/appointments", response_model=List[schemas.AppointmentResponse])
 def get_all_appointments(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user_optional),
+    employer: models.User = Depends(require_employer),
 ):
     """
-    If admin/staff is logged in, returns all clinic appointments.
-    If patient is logged in, returns their own appointments.
-    If public, returns recent session appointments.
+    Employer-only: returns all appointments across the entire clinic.
+    Raises 403 Forbidden if called by a normal patient.
     """
-    if current_user and getattr(current_user, "role", "patient") in ["admin", "staff", "employer"]:
-        return crud.get_appointments(db)
-    elif current_user:
-        return crud.get_user_appointments(db, user_id=current_user.id)
-    else:
-        return crud.get_appointments(db)
+    return crud.get_appointments(db)
 
 
 @router.get("/appointments/{appointment_id}", response_model=schemas.AppointmentResponse)
 def get_appointment(
     appointment_id: int,
     db: Session = Depends(get_db),
-    current_user: Optional[models.User] = Depends(get_current_user_optional),
+    current_user: models.User = Depends(get_current_user),
 ):
     appointment = crud.get_appointment_by_id(db, appointment_id)
     if not appointment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
 
-    # If patient is logged in, verify ownership unless admin
-    if current_user and current_user.role != "admin" and appointment.user_id:
-        if appointment.user_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this appointment")
+    user_role = getattr(current_user, "role", "patient")
+
+    # If user is a patient, verify strict ownership
+    if user_role == "patient":
+        if appointment.user_id is not None and appointment.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You cannot view another patient's appointment.",
+            )
 
     return appointment
 
@@ -82,16 +82,21 @@ def update_appointment(
     appointment_id: int,
     patch: schemas.AppointmentUpdate,
     db: Session = Depends(get_db),
-    current_user: Optional[models.User] = Depends(get_current_user_optional),
+    current_user: models.User = Depends(get_current_user),
 ):
     appointment = crud.get_appointment_by_id(db, appointment_id)
     if not appointment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
 
-    # Check permission: admin or appointment owner
-    if current_user and current_user.role != "admin" and appointment.user_id:
-        if appointment.user_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot modify another patient's appointment")
+    user_role = getattr(current_user, "role", "patient")
+
+    # If patient, verify ownership
+    if user_role == "patient":
+        if appointment.user_id is not None and appointment.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You cannot modify another patient's appointment.",
+            )
 
     update_data = patch.model_dump(exclude_unset=True)
     updated = crud.update_appointment(db, appointment_id, update_data)
@@ -102,16 +107,21 @@ def update_appointment(
 def cancel_or_delete_appointment(
     appointment_id: int,
     db: Session = Depends(get_db),
-    current_user: Optional[models.User] = Depends(get_current_user_optional),
+    current_user: models.User = Depends(get_current_user),
 ):
     appointment = crud.get_appointment_by_id(db, appointment_id)
     if not appointment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
 
-    # Check permission: admin or appointment owner
-    if current_user and current_user.role != "admin" and appointment.user_id:
-        if appointment.user_id != current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cannot delete another patient's appointment")
+    user_role = getattr(current_user, "role", "patient")
 
-    deleted = crud.delete_appointment(db, appointment_id)
+    # If patient, verify ownership
+    if user_role == "patient":
+        if appointment.user_id is not None and appointment.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied. You cannot delete another patient's appointment.",
+            )
+
+    crud.delete_appointment(db, appointment_id)
     return {"message": "Appointment deleted successfully", "id": appointment_id}

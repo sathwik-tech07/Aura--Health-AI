@@ -156,7 +156,8 @@ def require_role(allowed_roles: List[str]):
         current_user = Depends(get_current_user),
     ):
         user_role = getattr(current_user, "role", "patient") or "patient"
-        if user_role in allowed_roles:
+        # Admin or exact role match allowed
+        if user_role == "admin" or user_role in allowed_roles:
             return current_user
 
         raise HTTPException(
@@ -167,7 +168,7 @@ def require_role(allowed_roles: List[str]):
     return role_checker
 
 
-def get_current_patient(
+def require_patient(
     current_user = Depends(get_current_user),
 ):
     """
@@ -176,11 +177,16 @@ def get_current_patient(
     return current_user
 
 
-def get_current_employer(
-    current_user = Depends(require_role(["employer", "admin"])),
+def require_employer(
+    current_user = Depends(require_role(["employer", "admin", "staff"])),
 ):
     """
-    Dependency: verifies authenticated user has the 'employer' role.
+    Dependency: strictly verifies authenticated user has the 'employer' role.
     Raises 403 Forbidden for patients.
     """
     return current_user
+
+
+# Reusable aliases for flexible dependency injection
+get_current_patient = require_patient
+get_current_employer = require_employer

@@ -12,10 +12,11 @@ import {
   X,
   ShieldCheck,
   User,
+  Mic,
 } from 'lucide-react';
 import LanguageSelector from './LanguageSelector';
 
-export type PageKey = 'none' | 'dashboard' | 'appointments' | 'conversations' | 'doctors' | 'admin';
+export type PageKey = 'none' | 'dashboard' | 'employer' | 'appointments' | 'conversations' | 'doctors';
 
 interface HeaderProps {
   currentPage: PageKey;
@@ -39,16 +40,17 @@ export const Header: React.FC<HeaderProps> = ({
   onStartVoice,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const isAdmin = user?.role === 'admin' || user?.role === 'staff';
+  const isEmployer = user?.role === 'employer' || user?.role === 'admin';
 
+  // Role-specific navigation tabs
   const navItems = [
     { key: 'none' as PageKey, label: 'Home', icon: Home },
-    ...(isAdmin
-      ? [{ key: 'admin' as PageKey, label: 'Admin Portal', icon: ShieldCheck }]
-      : [{ key: 'dashboard' as PageKey, label: 'Dashboard', icon: LayoutDashboard }]),
+    ...(isEmployer
+      ? [{ key: 'employer' as PageKey, label: 'Employer Portal', icon: ShieldCheck }]
+      : [{ key: 'dashboard' as PageKey, label: 'Patient Portal', icon: LayoutDashboard }]),
     { key: 'doctors' as PageKey, label: 'Doctors', icon: Stethoscope },
     { key: 'appointments' as PageKey, label: 'Appointments', icon: Calendar },
-    { key: 'conversations' as PageKey, label: 'Conversations', icon: MessageSquare },
+    { key: 'conversations' as PageKey, label: 'History', icon: MessageSquare },
   ];
 
   const handleNav = (key: PageKey) => {
@@ -70,14 +72,14 @@ export const Header: React.FC<HeaderProps> = ({
           <div>
             <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-1.5">
               <span>Aura<span className="text-cyan-400">Health AI</span></span>
-              {isAdmin && (
-                <span className="text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-1.5 py-0.2 rounded-full font-mono uppercase">
-                  Staff
+              {isEmployer && (
+                <span className="text-[9px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-1.5 py-0.5 rounded-full font-mono uppercase">
+                  Employer
                 </span>
               )}
             </h1>
             <p className="text-[9px] tracking-widest text-gray-400 uppercase">
-              {isAdmin ? 'Clinic Administration Core' : 'Multi-Agent Healthcare Platform'}
+              {isEmployer ? 'Employer Healthcare Operations' : 'Intelligent Clinical Platform'}
             </p>
           </div>
         </div>
@@ -93,8 +95,8 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => handleNav(item.key)}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
                   isActive
-                    ? item.key === 'admin'
-                      ? 'bg-purple-500 text-white font-bold shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                    ? item.key === 'employer'
+                      ? 'bg-indigo-600 text-white font-bold shadow-[0_0_15px_rgba(99,102,241,0.4)]'
                       : 'bg-cyan-500 text-dark-950 font-bold shadow-[0_0_15px_rgba(6,182,212,0.3)]'
                     : 'text-gray-300 hover:text-white hover:bg-white/5'
                 }`}
@@ -106,18 +108,28 @@ export const Header: React.FC<HeaderProps> = ({
           })}
         </nav>
 
-        {/* Right Tools: Language, User Role & Actions */}
+        {/* Right Tools: AI Actions, Language & User Controls */}
         <div className="hidden sm:flex items-center gap-3">
-          {/* Header Language Picker */}
-          <LanguageSelector variant="header" />
-
           {/* Quick AI Trigger */}
           <button
             onClick={onStartChat}
-            className="px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/20 transition"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-400 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/20 transition"
           >
-            🩺 AI Check
+            <Stethoscope size={13} />
+            <span>AI Check</span>
           </button>
+
+          {/* Quick Voice Trigger */}
+          <button
+            onClick={onStartVoice}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 hover:border-blue-400 text-blue-300 text-xs font-semibold hover:bg-blue-500/20 transition"
+          >
+            <Mic size={13} />
+            <span>Voice</span>
+          </button>
+
+          {/* Header Language Picker */}
+          <LanguageSelector variant="header" />
 
           {!token ? (
             <button
@@ -130,7 +142,7 @@ export const Header: React.FC<HeaderProps> = ({
           ) : (
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-gray-300">
-                <User size={13} className={isAdmin ? 'text-purple-400' : 'text-cyan-400'} />
+                <User size={13} className={isEmployer ? 'text-indigo-400' : 'text-cyan-400'} />
                 <span className="font-medium truncate max-w-[120px]">{user?.name?.split(' ')[0] || 'User'}</span>
               </div>
               <button
@@ -139,6 +151,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title="Sign out"
               >
                 <LogOut size={13} />
+                <span className="text-[11px]">Logout</span>
               </button>
             </div>
           )}
@@ -168,8 +181,8 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => handleNav(item.key)}
                 className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-sm font-medium transition ${
                   isActive
-                    ? item.key === 'admin'
-                      ? 'bg-purple-500 text-white font-bold'
+                    ? item.key === 'employer'
+                      ? 'bg-indigo-600 text-white font-bold'
                       : 'bg-cyan-500 text-dark-950 font-bold'
                     : 'text-gray-300 hover:bg-white/5'
                 }`}
@@ -188,7 +201,7 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               className="flex-1 py-2 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-xs font-bold"
             >
-              AI Check
+              AI Triage Check
             </button>
             <button
               onClick={() => {

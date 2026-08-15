@@ -1,32 +1,34 @@
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app import crud, schemas, models
 from app.database import get_db
-from app.security import require_role
+from app.security import require_employer
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(prefix="/employer", tags=["Employer"])
 
 
 @router.get("/stats", response_model=schemas.AdminStatsResponse)
-def get_stats(
+def get_employer_stats(
     db: Session = Depends(get_db),
-    admin_user: models.User = Depends(require_role(["admin", "staff", "employer"])),
+    employer: models.User = Depends(require_employer),
 ):
     """
-    Administrative Clinic Analytics (Active appointments, doctor capacity, patient count, revenue).
+    Employer / Admin Clinic Operations Analytics.
+    Requires role: employer. Returns 403 Forbidden for patients.
     """
     return crud.get_admin_stats(db)
 
 
 @router.get("/patients", response_model=List[schemas.UserResponse])
-def get_patients(
+def get_employer_patients(
     db: Session = Depends(get_db),
-    admin_user: models.User = Depends(require_role(["admin", "staff", "employer"])),
+    employer: models.User = Depends(require_employer),
 ):
     """
-    Returns registered patient directory for clinic management.
+    Employer / Admin Patient Directory.
+    Requires role: employer. Returns 403 Forbidden for patients.
     """
     return crud.get_all_patients(db)
 
@@ -35,10 +37,10 @@ def get_patients(
 def add_doctor(
     doctor: schemas.DoctorCreate,
     db: Session = Depends(get_db),
-    admin_user: models.User = Depends(require_role(["admin", "staff"])),
+    employer: models.User = Depends(require_employer),
 ):
     """
-    Admin: Add a new specialist to clinic roster.
+    Employer: Add a new specialist to clinic roster.
     """
     return crud.create_doctor(db, doctor)
 
@@ -47,10 +49,10 @@ def add_doctor(
 def remove_doctor(
     doctor_id: int,
     db: Session = Depends(get_db),
-    admin_user: models.User = Depends(require_role(["admin", "staff"])),
+    employer: models.User = Depends(require_employer),
 ):
     """
-    Admin: Remove a doctor from clinic roster.
+    Employer: Remove a doctor from clinic roster.
     """
     deleted = crud.delete_doctor(db, doctor_id)
     if not deleted:
